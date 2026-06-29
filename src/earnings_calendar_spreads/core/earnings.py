@@ -1,8 +1,10 @@
 from datetime import date, timedelta
 
+from earnings_calendar_spreads.core.models import EarningsEvent
+
 
 def filter_actionable_earnings(
-  earnings: list[dict],
+  earnings: list[EarningsEvent],
   today: date,
 ) -> dict[str, list[str]]:
   """
@@ -18,19 +20,14 @@ def filter_actionable_earnings(
   today_after_close = []
   tomorrow_before_open = []
 
-  for item in earnings:
-    symbol = item.get("symbol")
-    earnings_date = item.get("date")
-    hour = item.get("hour", "").lower()
+  for event in earnings:
+    report_time = event.report_time.lower()
 
-    if not symbol:
-      continue
+    if event.report_date == today and report_time == "amc":
+      today_after_close.append(event.symbol)
 
-    if earnings_date == today.isoformat() and hour == "amc":
-      today_after_close.append(symbol)
-
-    if earnings_date == tomorrow.isoformat() and hour == "bmo":
-      tomorrow_before_open.append(symbol)
+    if event.report_date == tomorrow and report_time == "bmo":
+      tomorrow_before_open.append(event.symbol)
 
   return {
     "today_after_close": today_after_close,
