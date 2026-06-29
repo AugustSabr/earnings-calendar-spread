@@ -1,6 +1,6 @@
 from datetime import date
 
-from earnings_calendar_spreads.workflows import earnings_scan
+from earnings_calendar_spreads.workflow import earnings_scan
 
 
 def test_scan_earnings_candidates(monkeypatch):
