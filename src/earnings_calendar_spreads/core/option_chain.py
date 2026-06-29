@@ -67,3 +67,45 @@ def calculate_atm_iv_by_expiration(
     )
 
   return atm_iv_by_expiration
+
+def calculate_mid_price(option: dict) -> float | None:
+  """
+  Beregner mid price fra bid og ask.
+  - hvis bid eller ask mangler/er 0, returneres None.
+  """
+  bid = option.get("bid")
+  ask = option.get("ask")
+
+  if not bid or not ask:
+    return None
+
+  return (bid + ask) / 2.0
+
+def calculate_expected_move(
+  calls: list[dict],
+  puts: list[dict],
+  underlying_price: float,
+) -> str | None:
+  """
+  Beregner expected move fra ATM straddle som prosent av underliggende pris.
+  """
+  nearest_call = find_nearest_strike_option(
+    options=calls,
+    underlying_price=underlying_price,
+  )
+
+  nearest_put = find_nearest_strike_option(
+    options=puts,
+    underlying_price=underlying_price,
+  )
+
+  call_mid = calculate_mid_price(nearest_call)
+  put_mid = calculate_mid_price(nearest_put)
+
+  if not call_mid or not put_mid:
+    return None
+
+  straddle_price = call_mid + put_mid
+  expected_move = round(straddle_price / underlying_price * 100, 2)
+
+  return f"{expected_move}%"
