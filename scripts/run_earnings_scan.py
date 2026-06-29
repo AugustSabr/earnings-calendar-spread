@@ -9,8 +9,9 @@ def main():
   candidates = scan_earnings_candidates(today=today)
 
   print(f"Earnings candidates for {today}:")
+  print(f"Found {len(candidates)} candidate(s).")
+
   if not candidates:
-    print("No candidates found.")
     return
 
   for symbol in candidates:
