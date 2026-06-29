@@ -5,20 +5,24 @@ from ibapi.client import EClient
 from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
 
+
 INFO_ERROR_CODES = {
   2104,
   2106,
   2158,
 }
 
-class IBKRContractDetailsApp(EWrapper, EClient):
+
+class IBKRClient(EWrapper, EClient):
   """
-  Minimal IBKR-app for å hente contract details.
+  Felles IBKR-klient for broker-operasjoner.
   """
   def __init__(self):
     EClient.__init__(self, self)
+
     self.connected_event = threading.Event()
     self.contract_details_event = threading.Event()
+
     self.next_order_id = None
     self.contract_details = []
 
@@ -37,18 +41,77 @@ class IBKRContractDetailsApp(EWrapper, EClient):
 
   def contractDetailsEnd(self, reqId):
     """
-    Callback når IBKR er ferdig med contract details-responsen.
+    Callback når contract details-responsen er ferdig.
     """
     self.contract_details_event.set()
 
   def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
     """
-    Ignorerer vanlige IBKR-info-meldinger og printer ekte warnings/errors.
+    Ignorerer vanlige IBKR-info-meldinger og printer ekte feil/warnings.
     """
     if errorCode in INFO_ERROR_CODES:
       return
 
     print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
+
+  def connect_and_start(
+    self,
+    host: str,
+    port: int,
+    client_id: int,
+    timeout: int = 10,
+  ) -> None:
+    """
+    Kobler til IBKR og starter reader-thread.
+    """
+    self.connect(
+      host,
+      port,
+      clientId=client_id,
+    )
+
+    thread = threading.Thread(
+      target=self.run,
+      daemon=True,
+    )
+    thread.start()
+
+    if not self.connected_event.wait(timeout):
+      raise TimeoutError("Timed out waiting for IBKR nextValidId callback.")
+
+  def disconnect_and_wait(self) -> None:
+    """
+    Kobler fra IBKR.
+    """
+    self.disconnect()
+    time.sleep(1)
+
+  def get_stock_contract_details(
+    self,
+    symbol: str,
+    primary_exchange: str | None = None,
+    timeout: int = 10,
+  ):
+    """
+    Henter contract details for én aksje.
+    """
+    self.contract_details = []
+    self.contract_details_event.clear()
+
+    contract = make_stock_contract(
+      symbol=symbol,
+      primary_exchange=primary_exchange,
+    )
+
+    self.reqContractDetails(
+      1,
+      contract,
+    )
+
+    if not self.contract_details_event.wait(timeout):
+      raise TimeoutError("Timed out waiting for IBKR contract details.")
+
+    return self.contract_details
 
 
 def make_stock_contract(
@@ -68,51 +131,3 @@ def make_stock_contract(
     contract.primaryExchange = primary_exchange
 
   return contract
-
-
-def get_stock_contract_details(
-  symbol: str,
-  host: str,
-  port: int,
-  client_id: int,
-  primary_exchange: str | None = None,
-  timeout: int = 10,
-):
-  """
-  Henter contract details for én aksje fra IBKR.
-  """
-  app = IBKRContractDetailsApp()
-
-  app.connect(
-    host,
-    port,
-    clientId=client_id,
-  )
-
-  thread = threading.Thread(
-    target=app.run,
-    daemon=True,
-  )
-  thread.start()
-
-  try:
-    if not app.connected_event.wait(timeout):
-      raise TimeoutError("Timed out waiting for IBKR nextValidId callback.")
-
-    contract = make_stock_contract(
-      symbol=symbol,
-      primary_exchange=primary_exchange,
-    )
-
-    app.reqContractDetails(
-      1,
-      contract,
-    )
-
-    if not app.contract_details_event.wait(timeout):
-      raise TimeoutError("Timed out waiting for IBKR contract details.")
-
-    return app.contract_details
-  finally:
-    app.disconnect()
-    time.sleep(1)
