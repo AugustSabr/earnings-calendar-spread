@@ -27,12 +27,12 @@ def create_screening_result(
 
   return ScreeningResult(
     symbol=symbol.strip().upper(),
-    average_volume=average_volume,
-    iv30_rv30=iv30_rv30,
-    term_structure_slope=term_structure_slope,
+    average_volume=float(average_volume),
+    iv30_rv30=float(iv30_rv30),
+    term_structure_slope=float(term_structure_slope),
     expected_move=expected_move,
-    passes_average_volume=passes_average_volume,
-    passes_iv30_rv30=passes_iv30_rv30,
-    passes_term_structure_slope=passes_term_structure_slope,
-    qualifies=qualifies,
+    passes_average_volume=bool(passes_average_volume),
+    passes_iv30_rv30=bool(passes_iv30_rv30),
+    passes_term_structure_slope=bool(passes_term_structure_slope),
+    qualifies=bool(qualifies),
   )
