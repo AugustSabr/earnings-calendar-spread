@@ -4,6 +4,11 @@ import time
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 
+INFO_ERROR_CODES = {
+  2104,
+  2106,
+  2158,
+}
 
 class IBKRConnectionApp(EWrapper, EClient):
   """
@@ -21,11 +26,15 @@ class IBKRConnectionApp(EWrapper, EClient):
     self.next_order_id = orderId
     self.connected_event.set()
 
-  def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
-    """
-    Printer IBKR-feil/warnings for debugging.
-    """
-    print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
+def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
+  """
+  Printer IBKR-feil/warnings for debugging.
+  """
+  if errorCode in INFO_ERROR_CODES:
+    print(f"IBKR info {errorCode}: {errorString}")
+    return
+
+  print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
 
 
 def check_ibkr_connection(
