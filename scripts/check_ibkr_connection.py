@@ -6,13 +6,11 @@ from dotenv import load_dotenv
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 
-
 INFO_ERROR_CODES = {
   2104,
   2106,
   2158,
 }
-
 
 class IBKRConnectionCheckApp(EWrapper, EClient):
   """
@@ -32,10 +30,9 @@ class IBKRConnectionCheckApp(EWrapper, EClient):
 
   def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
     """
-    Printer IBKR-status/feil for debugging.
+    Ignorerer vanlige IBKR-info-meldinger og printer ekte warnings/errors.
     """
     if errorCode in INFO_ERROR_CODES:
-      print(f"IBKR info {errorCode}: {errorString}")
       return
 
     print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")

@@ -41,15 +41,14 @@ class IBKRContractDetailsApp(EWrapper, EClient):
     """
     self.contract_details_event.set()
 
-def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
-  """
-  Printer IBKR-feil/warnings for debugging.
-  """
-  if errorCode in INFO_ERROR_CODES:
-    print(f"IBKR info {errorCode}: {errorString}")
-    return
+  def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
+    """
+    Ignorerer vanlige IBKR-info-meldinger og printer ekte warnings/errors.
+    """
+    if errorCode in INFO_ERROR_CODES:
+      return
 
-  print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
+    print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
 
 
 def make_stock_contract(

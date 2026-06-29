@@ -63,3 +63,16 @@ Examples:
 - check Finnhub response format
 - check yfinance option data
 - run candidate screening
+
+---
+
+## IBKR design notes
+
+Broker code should eventually use one shared IBKR client/app per workflow run.
+
+Avoid opening a new TWS/Gateway connection for every operation. The broker workflow should connect once, then reuse the same connection for:
+
+- contract lookup
+- market data / quotes
+- order placement
+- order status callbacks
