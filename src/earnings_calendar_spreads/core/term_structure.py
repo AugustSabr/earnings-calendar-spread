@@ -42,3 +42,21 @@ def build_term_structure(
     return float(spline(dte))
 
   return estimate_iv
+
+def calculate_term_structure_slope(
+  term_structure,
+  first_dte: int,
+  target_dte: int = 45,
+) -> float:
+  """
+  Beregner term structure slope mellom første expiry-DTE og target-DTE.
+
+  Bevarer gammel calculator_new.py-logikk for ts_slope_0_45.
+  """
+  if first_dte == target_dte:
+    raise ValueError("first_dte and target_dte cannot be equal.")
+
+  return (
+    term_structure(target_dte)
+    - term_structure(first_dte)
+  ) / (target_dte - first_dte)
