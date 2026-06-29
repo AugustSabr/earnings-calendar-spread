@@ -27,3 +27,4 @@ tests/        Small tests for the logic.
 - Consider splitting the workflow into two steps if broker/order handling becomes slow:
   - pre-screen candidates 30–45 minutes before market close
   - re-check quotes and place orders about 15 minutes before close
+  - Consider async or parallel candidate evaluation if screening becomes too slow near market close.
