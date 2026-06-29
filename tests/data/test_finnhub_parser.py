@@ -17,12 +17,21 @@ def test_parses_finnhub_earnings_events():
     EarningsEvent("MSFT", date(2026, 6, 30), "bmo"),
   ]
 
-
-def test_skips_events_with_missing_values():
+def test_keeps_events_with_missing_report_time():
   raw_events = [
-    {"symbol": "AAPL", "date": "2026-06-29"},
-    {"symbol": "MSFT", "hour": "bmo"},
-    {"date": "2026-06-30", "hour": "amc"},
+    {"symbol": "AAPL", "date": "2026-06-29", "hour": ""},
+  ]
+
+  result = parse_finnhub_earnings_events(raw_events)
+
+  assert result == [
+    EarningsEvent("AAPL", date(2026, 6, 29), None),
+  ]
+
+def test_skips_events_with_missing_symbol_or_date():
+  raw_events = [
+    {"symbol": "AAPL", "hour": "amc"},
+    {"date": "2026-06-30", "hour": "bmo"},
   ]
 
   result = parse_finnhub_earnings_events(raw_events)

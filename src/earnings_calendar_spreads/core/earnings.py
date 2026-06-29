@@ -21,7 +21,7 @@ def filter_actionable_earnings(
   tomorrow_before_open = []
 
   for event in earnings:
-    report_time = event.report_time.lower()
+    report_time = event.report_time.lower() if event.report_time else ""
 
     if event.report_date == today and report_time == "amc":
       today_after_close.append(event.symbol)

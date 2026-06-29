@@ -9,4 +9,4 @@ class EarningsEvent:
   """
   symbol: str
   report_date: date
-  report_time: str
+  report_time: str | None = None
