@@ -3,6 +3,7 @@ import time
 
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
+from ibapi.contract import Contract
 
 from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
 
@@ -39,6 +40,27 @@ class IBKRClient(EWrapper, EClient):
     Callback med contract details fra IBKR.
     """
     self.contract_details.append(contractDetails)
+
+  def get_contract_details(
+    self,
+    contract: Contract,
+    timeout: int = 10,
+  ):
+    """
+    Henter contract details for en IBKR Contract.
+    """
+    self.contract_details = []
+    self.contract_details_event.clear()
+
+    self.reqContractDetails(
+      1,
+      contract,
+    )
+
+    if not self.contract_details_event.wait(timeout):
+      raise TimeoutError("Timed out waiting for IBKR contract details.")
+
+    return self.contract_details
 
   def contractDetailsEnd(self, reqId):
     """
@@ -96,20 +118,12 @@ class IBKRClient(EWrapper, EClient):
     """
     Henter contract details for én aksje.
     """
-    self.contract_details = []
-    self.contract_details_event.clear()
-
     contract = make_stock_contract(
       symbol=symbol,
       primary_exchange=primary_exchange,
     )
 
-    self.reqContractDetails(
-      1,
-      contract,
+    return self.get_contract_details(
+      contract=contract,
+      timeout=timeout,
     )
-
-    if not self.contract_details_event.wait(timeout):
-      raise TimeoutError("Timed out waiting for IBKR contract details.")
-
-    return self.contract_details
