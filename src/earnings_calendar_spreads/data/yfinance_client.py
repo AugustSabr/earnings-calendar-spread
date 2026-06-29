@@ -23,3 +23,18 @@ def get_option_expiration_dates(symbol: str) -> list[str]:
     raise ValueError(f"No option expirations found for {symbol}.")
 
   return expirations
+
+def get_price_history(
+  symbol: str,
+  period: str = "3mo",
+):
+  """
+  Henter historiske prisdata fra yfinance.
+  """
+  ticker = yf.Ticker(symbol)
+  history = ticker.history(period=period)
+
+  if history.empty:
+    raise ValueError(f"No price history found for {symbol}.")
+
+  return history

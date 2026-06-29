@@ -53,3 +53,17 @@ def test_get_option_expiration_dates_raises_error_when_missing(monkeypatch):
 
   with pytest.raises(ValueError):
     yfinance_client.get_option_expiration_dates("AAPL")
+
+def test_get_price_history(monkeypatch):
+  monkeypatch.setattr(yfinance_client.yf, "Ticker", FakeTicker)
+
+  result = yfinance_client.get_price_history("AAPL")
+
+  assert not result.empty
+  assert result["Close"].iloc[-1] == 123.45
+
+def test_get_price_history_raises_error_when_missing(monkeypatch):
+  monkeypatch.setattr(yfinance_client.yf, "Ticker", FakeTickerWithoutData)
+
+  with pytest.raises(ValueError):
+    yfinance_client.get_price_history("AAPL")
