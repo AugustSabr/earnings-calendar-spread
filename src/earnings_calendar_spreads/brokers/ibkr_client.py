@@ -2,8 +2,9 @@ import threading
 import time
 
 from ibapi.client import EClient
-from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
+
+from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
 
 
 INFO_ERROR_CODES = {
@@ -112,22 +113,3 @@ class IBKRClient(EWrapper, EClient):
       raise TimeoutError("Timed out waiting for IBKR contract details.")
 
     return self.contract_details
-
-
-def make_stock_contract(
-  symbol: str,
-  primary_exchange: str | None = None,
-) -> Contract:
-  """
-  Lager en enkel STK-kontrakt for amerikansk aksje.
-  """
-  contract = Contract()
-  contract.symbol = symbol.strip().upper()
-  contract.secType = "STK"
-  contract.exchange = "SMART"
-  contract.currency = "USD"
-
-  if primary_exchange:
-    contract.primaryExchange = primary_exchange
-
-  return contract
