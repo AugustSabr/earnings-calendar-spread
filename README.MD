@@ -19,3 +19,11 @@ src/earnings_calendar_spreads/
               Example: run a scan, screen symbols, place trades.
               
 tests/        Small tests for the logic.
+```
+
+## Possible future improvements
+
+- Add persistent logging of screening results, attempted orders, fills, and exits.
+- Consider splitting the workflow into two steps if broker/order handling becomes slow:
+  - pre-screen candidates 30–45 minutes before market close
+  - re-check quotes and place orders about 15 minutes before close
