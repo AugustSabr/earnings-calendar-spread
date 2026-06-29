@@ -35,3 +35,35 @@ def calculate_atm_iv(
     nearest_call["impliedVolatility"]
     + nearest_put["impliedVolatility"]
   ) / 2.0
+
+def calculate_atm_iv_by_expiration(
+  option_chains: dict[str, dict[str, list[dict]]],
+  underlying_price: float,
+) -> dict[str, float]:
+  """
+  Beregner ATM implied volatility for hver expiration.
+
+  Forventer option_chains på formatet:
+  {
+    "2026-07-03": {
+      "calls": [...],
+      "puts": [...]
+    }
+  }
+  """
+  atm_iv_by_expiration = {}
+
+  for expiration_date, chain in option_chains.items():
+    calls = chain.get("calls", [])
+    puts = chain.get("puts", [])
+
+    if not calls or not puts:
+      continue
+
+    atm_iv_by_expiration[expiration_date] = calculate_atm_iv(
+      calls=calls,
+      puts=puts,
+      underlying_price=underlying_price,
+    )
+
+  return atm_iv_by_expiration

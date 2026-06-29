@@ -2,6 +2,7 @@ import pytest
 
 from earnings_calendar_spreads.core.option_chain import find_nearest_strike_option
 from earnings_calendar_spreads.core.option_chain import calculate_atm_iv
+from earnings_calendar_spreads.core.option_chain import calculate_atm_iv_by_expiration
 
 def test_finds_option_with_strike_nearest_underlying_price():
   options = [
@@ -42,3 +43,50 @@ def test_calculates_atm_iv_from_nearest_call_and_put():
   )
 
   assert result == 0.40
+
+def test_calculates_atm_iv_by_expiration():
+  option_chains = {
+    "2026-07-03": {
+      "calls": [
+        {"strike": 100.0, "impliedVolatility": 0.30},
+      ],
+      "puts": [
+        {"strike": 100.0, "impliedVolatility": 0.50},
+      ],
+    },
+    "2026-07-10": {
+      "calls": [
+        {"strike": 100.0, "impliedVolatility": 0.40},
+      ],
+      "puts": [
+        {"strike": 100.0, "impliedVolatility": 0.60},
+      ],
+    },
+  }
+
+  result = calculate_atm_iv_by_expiration(
+    option_chains=option_chains,
+    underlying_price=101.0,
+  )
+
+  assert result == {
+    "2026-07-03": 0.40,
+    "2026-07-10": 0.50,
+  }
+
+def test_skips_expiration_when_calls_or_puts_are_missing():
+  option_chains = {
+    "2026-07-03": {
+      "calls": [],
+      "puts": [
+        {"strike": 100.0, "impliedVolatility": 0.50},
+      ],
+    },
+  }
+
+  result = calculate_atm_iv_by_expiration(
+    option_chains=option_chains,
+    underlying_price=101.0,
+  )
+
+  assert result == {}
