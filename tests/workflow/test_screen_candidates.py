@@ -1,8 +1,10 @@
 from datetime import date
 
-from earnings_calendar_spreads.core.models import ScreeningResult
+from earnings_calendar_spreads.core.models import (
+  EarningsEvent,
+  ScreeningResult,
+)
 from earnings_calendar_spreads.workflow import screen_candidates
-
 
 def test_screen_earnings_candidates(monkeypatch):
   def fake_scan_earnings_candidates(today):
@@ -38,7 +40,6 @@ def test_screen_earnings_candidates(monkeypatch):
 
   assert [item.symbol for item in result] == ["AAPL", "MSFT"]
   assert all(item.qualifies for item in result)
-
 
 def test_screen_earnings_candidates_skips_symbols_with_errors(monkeypatch):
   def fake_scan_earnings_candidates(today):
@@ -76,3 +77,46 @@ def test_screen_earnings_candidates_skips_symbols_with_errors(monkeypatch):
   )
 
   assert [item.symbol for item in result] == ["AAPL"]
+
+def test_screen_earnings_candidate_events(monkeypatch):
+  today = date(2026, 7, 1)
+
+  event = EarningsEvent(
+    symbol="AAPL",
+    report_date=today,
+    report_time="amc",
+  )
+
+  screening_result = ScreeningResult(
+    symbol="AAPL",
+    average_volume=10_000_000,
+    iv30_rv30=1.5,
+    term_structure_slope=-0.01,
+    expected_move="5.0%",
+    passes_average_volume=True,
+    passes_iv30_rv30=True,
+    passes_term_structure_slope=True,
+    qualifies=True,
+  )
+
+  monkeypatch.setattr(
+    screen_candidates,
+    "scan_earnings_candidate_events",
+    lambda today: [event],
+  )
+
+  monkeypatch.setattr(
+    screen_candidates,
+    "screen_symbol",
+    lambda symbol, today: screening_result,
+  )
+
+  candidates = screen_candidates.screen_earnings_candidate_events(
+    today=today,
+  )
+
+  assert len(candidates) == 1
+  assert candidates[0].earnings_event == event
+  assert candidates[0].screening_result == screening_result
+  assert candidates[0].earnings_event.report_date == today
+  assert candidates[0].screening_result.qualifies is True

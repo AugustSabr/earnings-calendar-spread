@@ -39,3 +39,11 @@ class CalendarSpreadPlan:
   right: str
   quantity: int
   net_debit: float | None = None
+
+@dataclass(frozen=True)
+class ScreenedEarningsCandidate:
+  """
+  Earnings candidate med tilhørende screening-resultat.
+  """
+  earnings_event: EarningsEvent
+  screening_result: ScreeningResult
