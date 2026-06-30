@@ -30,9 +30,20 @@ def test_make_option_contract():
 
   assert contract.symbol == "AAPL"
   assert contract.secType == "OPT"
-  assert contract.exchange == "SMART"
+  assert contract.exchange == ""
   assert contract.currency == "USD"
   assert contract.lastTradeDateOrContractMonth == "20260717"
   assert contract.strike == 100.0
   assert contract.right == "C"
   assert contract.multiplier == "100"
+
+def test_make_option_contract_with_exchange():
+  contract = make_option_contract(
+    symbol="aapl",
+    expiration="20260717",
+    strike=300,
+    right="c",
+    exchange="SMART",
+  )
+
+  assert contract.exchange == "SMART"

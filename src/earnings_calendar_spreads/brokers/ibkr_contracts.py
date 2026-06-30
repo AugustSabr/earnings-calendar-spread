@@ -23,22 +23,26 @@ def make_option_contract(
   expiration: str,
   strike: float,
   right: str,
-  exchange: str = "SMART",
+  exchange: str | None = None,
 ) -> Contract:
   """
-  Lager en enkel OPT-kontrakt for amerikansk aksjeopsjon.
+  Lager en generic OPT-kontrakt for amerikansk aksjeopsjon.
 
+  exchange settes ikke som default, fordi generic option contracts
+  først skal resolves med reqContractDetails.
   expiration forventes som YYYYMMDD.
   right forventes som C eller P.
   """
   contract = Contract()
   contract.symbol = symbol.strip().upper()
   contract.secType = "OPT"
-  contract.exchange = exchange
   contract.currency = "USD"
   contract.lastTradeDateOrContractMonth = expiration
   contract.strike = float(strike)
   contract.right = right.strip().upper()
   contract.multiplier = "100"
+
+  if exchange:
+    contract.exchange = exchange
 
   return contract
