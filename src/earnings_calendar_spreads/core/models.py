@@ -24,3 +24,16 @@ class ScreeningResult:
   passes_iv30_rv30: bool
   passes_term_structure_slope: bool
   qualifies: bool
+
+@dataclass(frozen=True)
+class CalendarSpreadPlan:
+  """
+  Broker-uavhengig plan for en calendar spread.
+  """
+  symbol: str
+  short_expiration: str
+  long_expiration: str
+  strike: float
+  right: str
+  quantity: int
+  net_debit: float
