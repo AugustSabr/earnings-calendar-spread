@@ -2,8 +2,10 @@ import pytest
 
 from ibapi.contract import Contract
 
+from earnings_calendar_spreads.core.models import CalendarSpreadPlan
 from earnings_calendar_spreads.brokers.ibkr_calendar_spread import (
   build_calendar_spread_contract,
+  make_calendar_option_contracts,
 )
 
 
@@ -65,3 +67,29 @@ def test_build_calendar_spread_contract_requires_long_con_id():
       short_option_contract=short_option,
       long_option_contract=long_option,
     )
+
+def test_make_calendar_option_contracts():
+  plan = CalendarSpreadPlan(
+    symbol="AAPL",
+    short_expiration="2026-07-01",
+    long_expiration="2026-08-21",
+    strike=282.5,
+    right="C",
+    quantity=1,
+  )
+
+  short_contract, long_contract = make_calendar_option_contracts(plan)
+
+  assert short_contract.symbol == "AAPL"
+  assert short_contract.secType == "OPT"
+  assert short_contract.lastTradeDateOrContractMonth == "20260701"
+  assert short_contract.strike == 282.5
+  assert short_contract.right == "C"
+  assert short_contract.multiplier == "100"
+
+  assert long_contract.symbol == "AAPL"
+  assert long_contract.secType == "OPT"
+  assert long_contract.lastTradeDateOrContractMonth == "20260821"
+  assert long_contract.strike == 282.5
+  assert long_contract.right == "C"
+  assert long_contract.multiplier == "100"
