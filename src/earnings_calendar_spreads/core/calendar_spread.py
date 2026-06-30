@@ -100,3 +100,27 @@ def price_calendar_spread_plan(
     plan,
     net_debit=net_debit,
   )
+
+def calculate_calendar_close_credit(
+  front_ask: float,
+  back_bid: float,
+) -> float:
+  """
+  Beregner forventet credit for å lukke en long calendar spread.
+
+  Close:
+  - kjøp tilbake front option på ask
+  - selg back option på bid
+  """
+  if front_ask <= 0:
+    raise ValueError("front_ask must be greater than zero.")
+
+  if back_bid <= 0:
+    raise ValueError("back_bid must be greater than zero.")
+
+  close_credit = back_bid - front_ask
+
+  if close_credit <= 0:
+    raise ValueError("close_credit must be greater than zero.")
+
+  return close_credit

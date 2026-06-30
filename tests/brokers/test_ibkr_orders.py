@@ -2,6 +2,7 @@ import pytest
 
 from earnings_calendar_spreads.brokers.ibkr_orders import (
   build_calendar_spread_limit_order,
+  build_calendar_spread_close_order,
 )
 
 
@@ -44,3 +45,17 @@ def test_build_calendar_spread_limit_order_requires_positive_net_debit():
       net_debit=0,
       quantity=1,
     )
+
+def test_build_calendar_spread_close_order():
+  order = build_calendar_spread_close_order(
+    close_credit=10.40,
+    quantity=7,
+    transmit=False,
+  )
+
+  assert order.action == "SELL"
+  assert order.orderType == "LMT"
+  assert order.totalQuantity == 7
+  assert order.lmtPrice == 10.40
+  assert order.tif == "DAY"
+  assert order.transmit is False

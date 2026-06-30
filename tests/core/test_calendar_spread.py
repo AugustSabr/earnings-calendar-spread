@@ -6,6 +6,7 @@ from earnings_calendar_spreads.core.calendar_spread import (
   build_calendar_spread_plan,
   calculate_calendar_net_debit,
   price_calendar_spread_plan,
+  calculate_calendar_close_credit,
 )
 
 
@@ -112,3 +113,11 @@ def test_price_calendar_spread_plan():
   assert priced_plan.net_debit == pytest.approx(5.55)
 
   assert plan.net_debit is None
+
+def test_calculate_calendar_close_credit():
+  close_credit = calculate_calendar_close_credit(
+    front_ask=3.30,
+    back_bid=13.70,
+  )
+
+  assert close_credit == pytest.approx(10.40)

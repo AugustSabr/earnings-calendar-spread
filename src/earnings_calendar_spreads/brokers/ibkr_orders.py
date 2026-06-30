@@ -28,3 +28,32 @@ def build_calendar_spread_limit_order(
   order.transmit = transmit
 
   return order
+
+def build_calendar_spread_close_order(
+  close_credit: float,
+  quantity: int = 1,
+  transmit: bool = False,
+) -> Order:
+  """
+  Bygger limit order for å lukke en long calendar spread.
+
+  Brukes med samme BAG-contract som entry.
+  SELL combo lukker:
+  - short/front kjøpes tilbake
+  - long/back selges
+  """
+  if quantity <= 0:
+    raise ValueError("quantity must be greater than zero.")
+
+  if close_credit <= 0:
+    raise ValueError("close_credit must be greater than zero.")
+
+  order = Order()
+  order.action = "SELL"
+  order.orderType = "LMT"
+  order.totalQuantity = quantity
+  order.lmtPrice = float(close_credit)
+  order.tif = "DAY"
+  order.transmit = transmit
+
+  return order
