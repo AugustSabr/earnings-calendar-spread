@@ -1,8 +1,11 @@
 import pytest
 
+from earnings_calendar_spreads.core.models import CalendarSpreadPlan
+
 from earnings_calendar_spreads.core.calendar_spread import (
   build_calendar_spread_plan,
   calculate_calendar_net_debit,
+  price_calendar_spread_plan,
 )
 
 
@@ -83,3 +86,29 @@ def test_build_calendar_spread_plan_requires_valid_right():
       front_bid=1.20,
       back_ask=2.45,
     )
+
+def test_price_calendar_spread_plan():
+  plan = CalendarSpreadPlan(
+    symbol="AAPL",
+    short_expiration="2026-07-01",
+    long_expiration="2026-08-21",
+    strike=280.0,
+    right="C",
+    quantity=1,
+  )
+
+  priced_plan = price_calendar_spread_plan(
+    plan=plan,
+    front_bid=3.20,
+    back_ask=8.75,
+  )
+
+  assert priced_plan.symbol == "AAPL"
+  assert priced_plan.short_expiration == "2026-07-01"
+  assert priced_plan.long_expiration == "2026-08-21"
+  assert priced_plan.strike == 280.0
+  assert priced_plan.right == "C"
+  assert priced_plan.quantity == 1
+  assert priced_plan.net_debit == pytest.approx(5.55)
+
+  assert plan.net_debit is None

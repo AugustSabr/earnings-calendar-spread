@@ -1,4 +1,5 @@
 from datetime import datetime
+from dataclasses import replace
 
 from earnings_calendar_spreads.core.models import CalendarSpreadPlan
 
@@ -75,5 +76,27 @@ def build_calendar_spread_plan(
     strike=float(strike),
     right=cleaned_right,
     quantity=quantity,
+    net_debit=net_debit,
+  )
+
+def price_calendar_spread_plan(
+  plan: CalendarSpreadPlan,
+  front_bid: float,
+  back_ask: float,
+) -> CalendarSpreadPlan:
+  """
+  Legger net_debit på en calendar spread plan.
+
+  Bruker:
+  - front_bid fra short/front option
+  - back_ask fra long/back option
+  """
+  net_debit = calculate_calendar_net_debit(
+    front_bid=front_bid,
+    back_ask=back_ask,
+  )
+
+  return replace(
+    plan,
     net_debit=net_debit,
   )
