@@ -3,13 +3,10 @@ import sys
 
 from dotenv import load_dotenv
 
-from earnings_calendar_spreads.brokers.ibkr_order_execution import (
-  submit_and_manage_order,
-)
 from earnings_calendar_spreads.brokers.ibkr_client import IBKRClient
 from earnings_calendar_spreads.core.order_policy import ExitOrderPolicy
-from earnings_calendar_spreads.workflow.prepare_calendar_exit import (
-  prepare_calendar_exit,
+from earnings_calendar_spreads.workflow.execute_calendar_exit import (
+  execute_calendar_exit,
 )
 
 
@@ -49,6 +46,24 @@ def print_exit_preview(exit):
   print(f"transmit: {order.transmit}")
 
 
+def print_execution_result(result):
+  print()
+  print("Submitted to TWS")
+  print(f"order_id: {result.order_id}")
+  print(f"transmit: {result.transmitted}")
+  print(f"initial_status: {result.initial_status}")
+
+  if result.final_status is not None:
+    print()
+    print("Final/latest status after wait")
+    print(result.final_status)
+
+  if result.cancel_status is not None:
+    print()
+    print("Status after cancel attempt")
+    print(result.cancel_status)
+
+
 def main():
   load_dotenv()
 
@@ -70,41 +85,19 @@ def main():
       client_id=client_id,
     )
 
-    exit = prepare_calendar_exit(
+    execution = execute_calendar_exit(
       client=client,
       symbol=symbol,
+      policy=policy,
       transmit=should_transmit,
     )
 
-    if exit is None:
+    if execution.prepared_exit is None:
       print(f"No calendar spread positions found for {symbol}.")
       return
 
-    print_exit_preview(exit)
-
-    result = submit_and_manage_order(
-      client=client,
-      contract=exit.bag_contract,
-      order=exit.order,
-      fill_timeout_seconds=policy.fill_timeout_seconds,
-      cancel_if_not_filled=policy.cancel_if_not_filled,
-    )
-
-    print()
-    print("Submitted to TWS")
-    print(f"order_id: {result.order_id}")
-    print(f"transmit: {result.transmitted}")
-    print(f"initial_status: {result.initial_status}")
-
-    if result.final_status is not None:
-      print()
-      print("Final/latest status after wait")
-      print(result.final_status)
-
-    if result.cancel_status is not None:
-      print()
-      print("Status after cancel attempt")
-      print(result.cancel_status)
+    print_exit_preview(execution.prepared_exit)
+    print_execution_result(execution.execution_result)
 
   finally:
     client.disconnect_and_wait()
