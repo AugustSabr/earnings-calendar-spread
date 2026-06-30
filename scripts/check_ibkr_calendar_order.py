@@ -227,6 +227,9 @@ def main():
     print(f"secType: {bag_contract.secType}")
     print(f"combo legs: {len(bag_contract.comboLegs)}")
 
+    should_transmit = "--transmit" in sys.argv
+    order.transmit = should_transmit
+
     print()
     print("Order preview")
     print(f"action: {order.action}")
@@ -234,10 +237,6 @@ def main():
     print(f"totalQuantity: {order.totalQuantity}")
     print(f"lmtPrice: {order.lmtPrice}")
     print(f"transmit: {order.transmit}")
-
-    should_transmit = "--transmit" in sys.argv
-
-    order.transmit = should_transmit
 
     order_id = client.place_order(
       contract=bag_contract,
