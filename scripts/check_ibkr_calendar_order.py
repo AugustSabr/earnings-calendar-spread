@@ -1,11 +1,12 @@
 import os
 import sys
-from dataclasses import replace
 from datetime import date
 from dotenv import load_dotenv
 
 from ibapi.tag_value import TagValue
-
+from earnings_calendar_spreads.brokers.ibkr_calendar_resolution import (
+  adjust_plan_to_common_strike,
+)
 from earnings_calendar_spreads.brokers.ibkr_calendar_plan import (
   build_calendar_spread_plan_from_ibkr_chain,
 )
@@ -14,44 +15,14 @@ from earnings_calendar_spreads.brokers.ibkr_calendar_spread import (
   make_calendar_option_contracts,
 )
 from earnings_calendar_spreads.brokers.ibkr_client import IBKRClient
-from earnings_calendar_spreads.brokers.ibkr_contracts import (
-  make_option_expiration_query_contract,
-)
-from earnings_calendar_spreads.brokers.ibkr_option_chain import (
-  iso_expiration_to_ibkr,
-)
 from earnings_calendar_spreads.brokers.ibkr_orders import (
   build_calendar_spread_limit_order,
 )
 from earnings_calendar_spreads.core.calendar_spread import (
   price_calendar_spread_plan,
 )
-from earnings_calendar_spreads.core.calendar_strike_selection import (
-  select_common_atm_strike,
-)
 from earnings_calendar_spreads.data.yfinance_client import get_current_price
 from earnings_calendar_spreads.core.order_policy import EntryOrderPolicy
-
-def get_available_strikes_for_expiration(
-  client: IBKRClient,
-  symbol: str,
-  expiration: str,
-  right: str,
-) -> list[float]:
-  query_contract = make_option_expiration_query_contract(
-    symbol=symbol,
-    expiration=iso_expiration_to_ibkr(expiration),
-    right=right,
-  )
-
-  details = client.get_contract_details(
-    query_contract,
-    timeout=20,
-  )
-
-  return sorted(
-    {item.contract.strike for item in details}
-  )
 
 
 def resolve_first_contract(
@@ -117,36 +88,19 @@ def main():
       quantity=1,
     )
 
-    short_strikes = get_available_strikes_for_expiration(
-      client=client,
-      symbol=plan.symbol,
-      expiration=plan.short_expiration,
-      right=plan.right,
-    )
+    original_strike = plan.strike
 
-    long_strikes = get_available_strikes_for_expiration(
+    plan = adjust_plan_to_common_strike(
       client=client,
-      symbol=plan.symbol,
-      expiration=plan.long_expiration,
-      right=plan.right,
-    )
-
-    common_strike = select_common_atm_strike(
-      short_strikes=short_strikes,
-      long_strikes=long_strikes,
+      plan=plan,
       underlying_price=underlying_price,
     )
 
-    if common_strike != plan.strike:
+    if plan.strike != original_strike:
       print(
-        f"Adjusted strike from {plan.strike} to {common_strike} "
+        f"Adjusted strike from {original_strike} to {plan.strike} "
         "because both legs must use a listed common strike."
       )
-
-    plan = replace(
-      plan,
-      strike=common_strike,
-    )
 
     short_generic_contract, long_generic_contract = make_calendar_option_contracts(
       plan,

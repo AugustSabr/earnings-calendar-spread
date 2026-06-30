@@ -3,17 +3,8 @@ import sys
 from datetime import date
 from dotenv import load_dotenv
 
-from dataclasses import replace
-
-from earnings_calendar_spreads.brokers.ibkr_contracts import (
-  make_option_expiration_query_contract,
-)
-from earnings_calendar_spreads.core.calendar_strike_selection import (
-  select_common_atm_strike,
-)
 from earnings_calendar_spreads.brokers.ibkr_option_chain import (
   select_option_chain_parameters,
-  iso_expiration_to_ibkr,
 )
 from earnings_calendar_spreads.brokers.ibkr_calendar_plan import (
   build_calendar_spread_plan_from_ibkr_chain,
@@ -24,7 +15,9 @@ from earnings_calendar_spreads.brokers.ibkr_calendar_spread import (
 )
 from earnings_calendar_spreads.brokers.ibkr_client import IBKRClient
 from earnings_calendar_spreads.data.yfinance_client import get_current_price
-
+from earnings_calendar_spreads.brokers.ibkr_calendar_resolution import (
+  adjust_plan_to_common_strike,
+)
 
 def print_contract(label, contract):
   print()
@@ -110,51 +103,19 @@ def main():
       quantity=1,
     )
 
-    short_expiration_query = make_option_expiration_query_contract(
-      symbol=plan.symbol,
-      expiration=iso_expiration_to_ibkr(plan.short_expiration),
-      right=plan.right,
-    )
+    original_strike = plan.strike
 
-    long_expiration_query = make_option_expiration_query_contract(
-      symbol=plan.symbol,
-      expiration=iso_expiration_to_ibkr(plan.long_expiration),
-      right=plan.right,
-    )
-
-    short_expiration_details = client.get_contract_details(
-      short_expiration_query,
-      timeout=20,
-    )
-
-    long_expiration_details = client.get_contract_details(
-      long_expiration_query,
-      timeout=20,
-    )
-
-    short_strikes = sorted(
-      {item.contract.strike for item in short_expiration_details}
-    )
-    long_strikes = sorted(
-      {item.contract.strike for item in long_expiration_details}
-    )
-
-    common_strike = select_common_atm_strike(
-      short_strikes=short_strikes,
-      long_strikes=long_strikes,
+    plan = adjust_plan_to_common_strike(
+      client=client,
+      plan=plan,
       underlying_price=underlying_price,
     )
 
-    if common_strike != plan.strike:
+    if plan.strike != original_strike:
       print(
-        f"Adjusted strike from {plan.strike} to {common_strike} "
+        f"Adjusted strike from {original_strike} to {plan.strike} "
         "because both legs must use a listed common strike."
       )
-
-    plan = replace(
-      plan,
-      strike=common_strike,
-    )
 
     short_generic_contract, long_generic_contract = make_calendar_option_contracts(
       plan,
