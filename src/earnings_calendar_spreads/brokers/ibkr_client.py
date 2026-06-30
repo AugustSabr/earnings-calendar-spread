@@ -369,3 +369,34 @@ class IBKRClient(EWrapper, EClient):
       event.wait(timeout)
 
     return order_id
+
+  def wait_for_order_status(
+    self,
+    order_id: int,
+    target_statuses: set[str],
+    timeout: int = 60,
+  ):
+    """
+    Venter til en ordre når en ønsket status, eller timeout.
+    Returnerer siste kjente status dict, eller None.
+    """
+    deadline = time.monotonic() + timeout
+    event = self.order_events.setdefault(
+      order_id,
+      threading.Event(),
+    )
+
+    while True:
+      event.clear()
+
+      current_status = self.order_status_by_id.get(order_id)
+
+      if current_status and current_status["status"] in target_statuses:
+        return current_status
+
+      remaining = deadline - time.monotonic()
+
+      if remaining <= 0:
+        return current_status
+
+      event.wait(remaining)

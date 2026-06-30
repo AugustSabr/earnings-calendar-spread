@@ -251,6 +251,21 @@ def main():
     print(f"transmit: {order.transmit}")
     print(f"latest_status: {client.order_status_by_id.get(order_id)}")
 
+    if should_transmit:
+      final_status = client.wait_for_order_status(
+        order_id=order_id,
+        target_statuses={
+          "Filled",
+          "Cancelled",
+          "Inactive",
+        },
+        timeout=60,
+      )
+
+      print()
+      print("Final/latest status after wait")
+      print(final_status)
+
   finally:
     client.disconnect_and_wait()
 
