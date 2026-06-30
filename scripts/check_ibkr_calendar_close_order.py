@@ -17,14 +17,14 @@ from earnings_calendar_spreads.brokers.ibkr_orders import (
 from earnings_calendar_spreads.core.calendar_spread import (
   calculate_calendar_close_credit,
 )
-
+from earnings_calendar_spreads.core.order_policy import ExitOrderPolicy
 
 def main():
   load_dotenv()
 
   symbol = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
   should_transmit = "--transmit" in sys.argv
-  fill_timeout_seconds = 30
+  policy = ExitOrderPolicy()
 
   host = os.getenv("IBKR_HOST", "127.0.0.1")
   port = int(os.getenv("IBKR_PORT", "7497"))
@@ -47,7 +47,8 @@ def main():
     )
 
     if not spreads:
-      raise ValueError(f"No calendar spread positions found for {symbol}.")
+      print(f"No calendar spread positions found for {symbol}.")
+      return
 
     spread = spreads[0]
 
@@ -139,7 +140,7 @@ def main():
           "Cancelled",
           "Inactive",
         },
-        timeout=fill_timeout_seconds,
+        timeout=policy.fill_timeout_seconds,
       )
 
       print()
@@ -149,7 +150,7 @@ def main():
       if final_status is None or final_status["status"] != "Filled":
         print()
         print(
-          f"Order was not filled within {fill_timeout_seconds} seconds. "
+          f"Order was not filled within {policy.fill_timeout_seconds} seconds. "
           "Cancelling order."
         )
 

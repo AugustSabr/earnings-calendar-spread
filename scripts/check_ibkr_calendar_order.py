@@ -30,7 +30,7 @@ from earnings_calendar_spreads.core.calendar_strike_selection import (
   select_common_atm_strike,
 )
 from earnings_calendar_spreads.data.yfinance_client import get_current_price
-
+from earnings_calendar_spreads.core.order_policy import EntryOrderPolicy
 
 def get_available_strikes_for_expiration(
   client: IBKRClient,
@@ -230,6 +230,8 @@ def main():
     should_transmit = "--transmit" in sys.argv
     order.transmit = should_transmit
 
+    policy = EntryOrderPolicy()
+
     print()
     print("Order preview")
     print(f"action: {order.action}")
@@ -251,7 +253,6 @@ def main():
     print(f"transmit: {order.transmit}")
     print(f"latest_status: {client.order_status_by_id.get(order_id)}")
 
-    fill_timeout_seconds = 30
     if should_transmit:
       final_status = client.wait_for_order_status(
         order_id=order_id,
@@ -260,7 +261,7 @@ def main():
           "Cancelled",
           "Inactive",
         },
-        timeout=fill_timeout_seconds,
+        timeout=policy.fill_timeout_seconds,
       )
 
       print()
@@ -269,7 +270,7 @@ def main():
 
       if final_status is None or final_status["status"] != "Filled":
         print()
-        print(f"Order was not filled within {fill_timeout_seconds} seconds. Cancelling order.")
+        print(f"Order was not filled within {policy.fill_timeout_seconds} seconds. Cancelling order.")
 
         client.cancel_order(order_id)
 
