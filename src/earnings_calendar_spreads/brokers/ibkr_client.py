@@ -28,6 +28,9 @@ class IBKRClient(EWrapper, EClient):
     self.next_order_id = None
     self.contract_details = []
 
+    self.market_data_events = {}
+    self.bid_ask_by_req_id = {}
+
   def nextValidId(self, orderId):
     """
     Callback fra IBKR når API-tilkoblingen er klar.
@@ -127,3 +130,61 @@ class IBKRClient(EWrapper, EClient):
       contract=contract,
       timeout=timeout,
     )
+
+  def tickPrice(self, reqId, tickType, price, attrib):
+    """
+    Callback for market data-priser.
+    """
+
+    if price < 0:
+      return
+
+    bid, ask = self.bid_ask_by_req_id.get(reqId, (None, None))
+
+    if tickType == 1:
+      bid = price
+
+    if tickType == 2:
+      ask = price
+
+    self.bid_ask_by_req_id[reqId] = (bid, ask)
+
+    if bid is not None and ask is not None:
+      event = self.market_data_events.get(reqId)
+      if event:
+        event.set()
+
+  def get_bid_ask(
+    self,
+    contract,
+    req_id: int = 100,
+    timeout: int = 10,
+  ) -> tuple[float, float]:
+    """
+    Henter bid/ask for en IBKR Contract.
+    """
+    self.bid_ask_by_req_id[req_id] = (None, None)
+
+    event = threading.Event()
+    self.market_data_events[req_id] = event
+
+    self.reqMktData(
+      req_id,
+      contract,
+      "",
+      False,
+      False,
+      [],
+    )
+
+    try:
+      if not event.wait(timeout):
+        bid, ask = self.bid_ask_by_req_id.get(req_id, (None, None))
+        raise TimeoutError(f"Timed out waiting for bid/ask. bid={bid}, ask={ask}")
+
+      bid, ask = self.bid_ask_by_req_id[req_id]
+      return bid, ask
+
+    finally:
+      self.cancelMktData(req_id)
+      self.market_data_events.pop(req_id, None)
