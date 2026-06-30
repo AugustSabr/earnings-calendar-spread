@@ -36,6 +36,10 @@ class IBKRClient(EWrapper, EClient):
     self.option_chain_parameters_event = threading.Event()
     self.option_chain_parameters = []
 
+    self.next_request_id = 1
+    self.active_contract_details_req_id = None
+    self.contract_details_error = None
+
   def nextValidId(self, orderId):
     """
     Callback fra IBKR når API-tilkoblingen er klar.
@@ -47,6 +51,9 @@ class IBKRClient(EWrapper, EClient):
     """
     Callback med contract details fra IBKR.
     """
+    if reqId != self.active_contract_details_req_id:
+      return
+
     self.contract_details.append(contractDetails)
 
   def get_contract_details(
@@ -57,23 +64,37 @@ class IBKRClient(EWrapper, EClient):
     """
     Henter contract details for en IBKR Contract.
     """
+    request_id = self.get_next_request_id()
+
     self.contract_details = []
+    self.contract_details_error = None
     self.contract_details_event.clear()
+    self.active_contract_details_req_id = request_id
 
     self.reqContractDetails(
-      1,
+      request_id,
       contract,
     )
 
-    if not self.contract_details_event.wait(timeout):
-      raise TimeoutError("Timed out waiting for IBKR contract details.")
+    try:
+      if not self.contract_details_event.wait(timeout):
+        raise TimeoutError("Timed out waiting for IBKR contract details.")
 
-    return self.contract_details
+      if self.contract_details_error:
+        raise ValueError(self.contract_details_error)
+
+      return self.contract_details
+
+    finally:
+      self.active_contract_details_req_id = None
 
   def contractDetailsEnd(self, reqId):
     """
     Callback når contract details-responsen er ferdig.
     """
+    if reqId != self.active_contract_details_req_id:
+      return
+
     self.contract_details_event.set()
 
   def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
@@ -81,6 +102,11 @@ class IBKRClient(EWrapper, EClient):
     Ignorerer vanlige IBKR-info-meldinger og printer ekte feil/warnings.
     """
     if errorCode in INFO_ERROR_CODES:
+      return
+    
+    if reqId == self.active_contract_details_req_id:
+      self.contract_details_error = f"IBKR error {errorCode}: {errorString}"
+      self.contract_details_event.set()
       return
 
     print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
@@ -153,7 +179,7 @@ class IBKRClient(EWrapper, EClient):
     """
     self.option_chain_parameters = []
     self.option_chain_parameters_event.clear()
-  
+
     self.reqSecDefOptParams(
       200,
       underlying_symbol.strip().upper(),
@@ -161,10 +187,10 @@ class IBKRClient(EWrapper, EClient):
       "STK",
       underlying_con_id,
     )
-  
+
     if not self.option_chain_parameters_event.wait(timeout):
       raise TimeoutError("Timed out waiting for IBKR option chain parameters.")
-  
+
     return self.option_chain_parameters
 
   def get_stock_contract_details(
@@ -243,3 +269,11 @@ class IBKRClient(EWrapper, EClient):
     finally:
       self.cancelMktData(req_id)
       self.market_data_events.pop(req_id, None)
+
+  def get_next_request_id(self) -> int:
+    """
+    Returnerer neste lokale request id.
+    """
+    request_id = self.next_request_id
+    self.next_request_id += 1
+    return request_id
