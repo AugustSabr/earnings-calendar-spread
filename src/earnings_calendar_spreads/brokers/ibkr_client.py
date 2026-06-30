@@ -4,6 +4,7 @@ import time
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
+from ibapi.order import Order
 
 from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
 from earnings_calendar_spreads.brokers.ibkr_option_chain import (
@@ -30,8 +31,11 @@ class IBKRClient(EWrapper, EClient):
     self.next_order_id = None
     self.contract_details = []
 
-    self.market_data_events = {}
     self.bid_ask_by_req_id = {}
+    self.market_data_events = {}
+
+    self.order_status_by_id = {}
+    self.order_events = {}
 
     self.option_chain_parameters_event = threading.Event()
     self.option_chain_parameters = []
@@ -104,6 +108,36 @@ class IBKRClient(EWrapper, EClient):
     if errorCode in INFO_ERROR_CODES:
       return
     
+    if reqId == self.active_contract_details_req_id:
+      self.contract_details_error = f"IBKR error {errorCode}: {errorString}"
+      self.contract_details_event.set()
+      return
+
+    print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
+
+  def error(self, reqId, *args):
+    """
+    Callback for IBKR errors/warnings.
+    - Støtter både gammel og ny IBKR API-signatur
+    - Ignorerer vanlige IBKR-info-meldinger og printer ekte feil/warnings.
+    """
+    if len(args) == 2:
+      errorCode, errorString = args
+      advancedOrderRejectJson = ""
+
+    elif len(args) == 3:
+      errorCode, errorString, advancedOrderRejectJson = args
+
+    elif len(args) == 4:
+      _errorTime, errorCode, errorString, advancedOrderRejectJson = args
+
+    else:
+      print(f"Unknown IBKR error callback format: reqId={reqId}, args={args}")
+      return
+
+    if errorCode in INFO_ERROR_CODES:
+      return
+
     if reqId == self.active_contract_details_req_id:
       self.contract_details_error = f"IBKR error {errorCode}: {errorString}"
       self.contract_details_event.set()
@@ -277,3 +311,61 @@ class IBKRClient(EWrapper, EClient):
     request_id = self.next_request_id
     self.next_request_id += 1
     return request_id
+
+  def orderStatus(
+    self,
+    orderId,
+    status,
+    filled,
+    remaining,
+    avgFillPrice,
+    permId,
+    parentId,
+    lastFillPrice,
+    clientId,
+    whyHeld,
+    mktCapPrice,
+  ):
+    self.order_status_by_id[orderId] = {
+      "status": status,
+      "filled": filled,
+      "remaining": remaining,
+      "avg_fill_price": avgFillPrice,
+      "last_fill_price": lastFillPrice,
+    }
+
+    event = self.order_events.get(orderId)
+    if event:
+      event.set()
+
+  def place_order(
+    self,
+    contract: Contract,
+    order: Order,
+    wait_for_status: bool = True,
+    timeout: int = 10,
+  ) -> int:
+    """
+    Sender en ordre til TWS/IBKR.
+    - order.transmit styrer om ordren faktisk transmitteres.
+    - transmit=False kan brukes for staged/untransmitted ordre.
+    """
+    if self.next_order_id is None:
+      raise ValueError("next_order_id is not available.")
+
+    order_id = self.next_order_id
+    self.next_order_id += 1
+
+    event = threading.Event()
+    self.order_events[order_id] = event
+
+    self.placeOrder(
+      order_id,
+      contract,
+      order,
+    )
+
+    if wait_for_status:
+      event.wait(timeout)
+
+    return order_id

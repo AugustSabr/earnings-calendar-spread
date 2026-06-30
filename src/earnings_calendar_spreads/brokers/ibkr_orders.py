@@ -24,6 +24,7 @@ def build_calendar_spread_limit_order(
   order.orderType = "LMT"
   order.totalQuantity = quantity
   order.lmtPrice = float(net_debit)
+  order.tif = "DAY"
   order.transmit = transmit
 
   return order

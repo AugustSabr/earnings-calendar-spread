@@ -16,6 +16,7 @@ def test_build_calendar_spread_limit_order():
   assert order.orderType == "LMT"
   assert order.totalQuantity == 2
   assert order.lmtPrice == 1.23
+  assert order.tif == "DAY"
   assert order.transmit is False
 
 
