@@ -61,7 +61,7 @@ def prepare_calendar_entry(
   client,
   symbol: str,
   earnings_date: date,
-  primary_exchange: str,
+  primary_exchange: str | None = None,
   right: str = "C",
   quantity: int = 1,
   transmit: bool = False,

@@ -83,7 +83,29 @@ def main():
     if len(sys.argv) > 2
     else date.today()
   )
-  primary_exchange = sys.argv[3] if len(sys.argv) > 3 else "NASDAQ"
+
+  primary_exchange = None
+
+  args_without_flags = [
+    arg
+    for arg in sys.argv[1:]
+    if not arg.startswith("--")
+  ]
+
+  symbol = args_without_flags[0] if len(args_without_flags) > 0 else "AAPL"
+
+  earnings_date = (
+    date.fromisoformat(args_without_flags[1])
+    if len(args_without_flags) > 1
+    else date.today()
+  )
+
+  primary_exchange = (
+    args_without_flags[2]
+    if len(args_without_flags) > 2
+    else None
+  )
+
   should_transmit = "--transmit" in sys.argv
 
   policy = EntryOrderPolicy()
@@ -105,8 +127,8 @@ def main():
       client=client,
       symbol=symbol,
       earnings_date=earnings_date,
-      primary_exchange=primary_exchange,
       policy=policy,
+      primary_exchange=primary_exchange,
       transmit=should_transmit,
     )
 
