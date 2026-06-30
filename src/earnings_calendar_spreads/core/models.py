@@ -29,6 +29,8 @@ class ScreeningResult:
 class CalendarSpreadPlan:
   """
   Broker-uavhengig plan for en calendar spread.
+
+  net_debit er None frem til live quotes/pricing er hentet.
   """
   symbol: str
   short_expiration: str
@@ -36,4 +38,4 @@ class CalendarSpreadPlan:
   strike: float
   right: str
   quantity: int
-  net_debit: float
+  net_debit: float | None = None
