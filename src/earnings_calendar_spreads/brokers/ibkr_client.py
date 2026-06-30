@@ -6,7 +6,9 @@ from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 
 from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
-
+from earnings_calendar_spreads.brokers.ibkr_option_chain import (
+  IBKROptionChainParameters,
+)
 
 INFO_ERROR_CODES = {
   2104,
@@ -30,6 +32,9 @@ class IBKRClient(EWrapper, EClient):
 
     self.market_data_events = {}
     self.bid_ask_by_req_id = {}
+
+    self.option_chain_parameters_event = threading.Event()
+    self.option_chain_parameters = []
 
   def nextValidId(self, orderId):
     """
@@ -111,6 +116,56 @@ class IBKRClient(EWrapper, EClient):
     """
     self.disconnect()
     time.sleep(1)
+
+  def securityDefinitionOptionParameter(
+    self,
+    reqId,
+    exchange,
+    underlyingConId,
+    tradingClass,
+    multiplier,
+    expirations,
+    strikes,
+  ):
+    self.option_chain_parameters.append(
+      IBKROptionChainParameters(
+        exchange=exchange,
+        underlying_con_id=underlyingConId,
+        trading_class=tradingClass,
+        multiplier=multiplier,
+        expirations=sorted(expirations),
+        strikes=sorted(float(strike) for strike in strikes),
+      )
+    )
+
+
+  def securityDefinitionOptionParameterEnd(self, reqId):
+    self.option_chain_parameters_event.set()
+
+  def get_option_chain_parameters(
+    self,
+    underlying_symbol: str,
+    underlying_con_id: int,
+    timeout: int = 10,
+  ):
+    """
+    Henter option chain metadata fra IBKR for en underliggende aksje.
+    """
+    self.option_chain_parameters = []
+    self.option_chain_parameters_event.clear()
+  
+    self.reqSecDefOptParams(
+      200,
+      underlying_symbol.strip().upper(),
+      "",
+      "STK",
+      underlying_con_id,
+    )
+  
+    if not self.option_chain_parameters_event.wait(timeout):
+      raise TimeoutError("Timed out waiting for IBKR option chain parameters.")
+  
+    return self.option_chain_parameters
 
   def get_stock_contract_details(
     self,
