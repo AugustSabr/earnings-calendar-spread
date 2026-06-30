@@ -11,6 +11,7 @@ from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
 from earnings_calendar_spreads.brokers.ibkr_option_chain import (
   IBKROptionChainParameters,
 )
+from earnings_calendar_spreads.brokers.ibkr_positions import IBKRPosition
 
 INFO_ERROR_CODES = {
   2104,
@@ -37,6 +38,9 @@ class IBKRClient(EWrapper, EClient):
 
     self.order_status_by_id = {}
     self.order_events = {}
+
+    self.positions_event = threading.Event()
+    self.positions = []
 
     self.option_chain_parameters_event = threading.Event()
     self.option_chain_parameters = []
@@ -101,20 +105,6 @@ class IBKRClient(EWrapper, EClient):
       return
 
     self.contract_details_event.set()
-
-  def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
-    """
-    Ignorerer vanlige IBKR-info-meldinger og printer ekte feil/warnings.
-    """
-    if errorCode in INFO_ERROR_CODES:
-      return
-    
-    if reqId == self.active_contract_details_req_id:
-      self.contract_details_error = f"IBKR error {errorCode}: {errorString}"
-      self.contract_details_event.set()
-      return
-
-    print(f"IBKR error {errorCode}: {errorString} (reqId={reqId})")
 
   def error(self, reqId, *args):
     """
@@ -413,3 +403,43 @@ class IBKRClient(EWrapper, EClient):
       order_id,
       OrderCancel(),
     )
+
+  def position(
+    self,
+    account,
+    contract,
+    position,
+    avgCost,
+  ):
+    self.positions.append(
+      IBKRPosition(
+        account=account,
+        contract=contract,
+        position=position,
+        average_cost=avgCost,
+      )
+    )
+
+  def positionEnd(self):
+    self.positions_event.set()
+
+  def get_positions(
+    self,
+    timeout: int = 10,
+  ) -> list[IBKRPosition]:
+    """
+    Henter åpne posisjoner fra IBKR.
+    """
+    self.positions = []
+    self.positions_event.clear()
+
+    self.reqPositions()
+
+    try:
+      if not self.positions_event.wait(timeout):
+        raise TimeoutError("Timed out waiting for IBKR positions.")
+
+      return self.positions
+
+    finally:
+      self.cancelPositions()
