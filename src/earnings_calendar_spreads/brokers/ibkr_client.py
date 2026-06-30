@@ -5,6 +5,7 @@ from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
+from ibapi.order_cancel import OrderCancel
 
 from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
 from earnings_calendar_spreads.brokers.ibkr_option_chain import (
@@ -400,3 +401,15 @@ class IBKRClient(EWrapper, EClient):
         return current_status
 
       event.wait(remaining)
+
+  def cancel_order(
+    self,
+    order_id: int,
+  ) -> None:
+    """
+    Kansellerer en ordre.
+    """
+    self.cancelOrder(
+      order_id,
+      OrderCancel(),
+    )

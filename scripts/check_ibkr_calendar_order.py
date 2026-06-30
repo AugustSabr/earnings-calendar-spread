@@ -251,6 +251,7 @@ def main():
     print(f"transmit: {order.transmit}")
     print(f"latest_status: {client.order_status_by_id.get(order_id)}")
 
+    fill_timeout_seconds = 30
     if should_transmit:
       final_status = client.wait_for_order_status(
         order_id=order_id,
@@ -259,12 +260,32 @@ def main():
           "Cancelled",
           "Inactive",
         },
-        timeout=60,
+        timeout=fill_timeout_seconds,
       )
 
       print()
       print("Final/latest status after wait")
       print(final_status)
+
+      if final_status is None or final_status["status"] != "Filled":
+        print()
+        print(f"Order was not filled within {fill_timeout_seconds} seconds. Cancelling order.")
+
+        client.cancel_order(order_id)
+
+        cancelled_status = client.wait_for_order_status(
+          order_id=order_id,
+          target_statuses={
+            "Cancelled",
+            "Inactive",
+            "Filled",
+          },
+          timeout=10,
+        )
+
+        print()
+        print("Status after cancel attempt")
+        print(cancelled_status)
 
   finally:
     client.disconnect_and_wait()
