@@ -2,28 +2,56 @@ import os
 import sys
 
 from dotenv import load_dotenv
-from ibapi.tag_value import TagValue
 
-from earnings_calendar_spreads.brokers.ibkr_calendar_positions import (
-  find_calendar_spread_positions,
-)
-from earnings_calendar_spreads.brokers.ibkr_calendar_spread import (
-  build_calendar_spread_contract,
-)
 from earnings_calendar_spreads.brokers.ibkr_client import IBKRClient
-from earnings_calendar_spreads.brokers.ibkr_orders import (
-  build_calendar_spread_close_order,
-)
-from earnings_calendar_spreads.core.calendar_spread import (
-  calculate_calendar_close_credit,
-)
 from earnings_calendar_spreads.core.order_policy import ExitOrderPolicy
+from earnings_calendar_spreads.workflow.prepare_calendar_exit import (
+  prepare_calendar_exit,
+)
+
+
+def print_exit_preview(exit):
+  spread = exit.spread
+  order = exit.order
+
+  print()
+  print(f"Calendar close order for {spread.symbol}")
+  print(f"Quantity: {spread.quantity}")
+
+  print()
+  print("Short/front option")
+  print(f"localSymbol: {exit.short_contract.localSymbol}")
+  print(f"position: {spread.short_position.position}")
+  print(f"bid: {exit.short_bid}")
+  print(f"ask: {exit.short_ask}")
+
+  print()
+  print("Long/back option")
+  print(f"localSymbol: {exit.long_contract.localSymbol}")
+  print(f"position: {spread.long_position.position}")
+  print(f"bid: {exit.long_bid}")
+  print(f"ask: {exit.long_ask}")
+
+  print()
+  print("Close pricing")
+  print(f"close_credit: {exit.close_credit}")
+
+  print()
+  print("Close order preview")
+  print("Uses entry BAG direction, then SELL combo to close.")
+  print(f"action: {order.action}")
+  print(f"orderType: {order.orderType}")
+  print(f"totalQuantity: {order.totalQuantity}")
+  print(f"lmtPrice: {order.lmtPrice}")
+  print(f"transmit: {order.transmit}")
+
 
 def main():
   load_dotenv()
 
   symbol = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
   should_transmit = "--transmit" in sys.argv
+
   policy = ExitOrderPolicy()
 
   host = os.getenv("IBKR_HOST", "127.0.0.1")
@@ -39,89 +67,21 @@ def main():
       client_id=client_id,
     )
 
-    positions = client.get_positions()
-
-    spreads = find_calendar_spread_positions(
-      positions=positions,
+    exit = prepare_calendar_exit(
+      client=client,
       symbol=symbol,
-    )
-
-    if not spreads:
-      print(f"No calendar spread positions found for {symbol}.")
-      return
-
-    spread = spreads[0]
-
-    short_contract = spread.short_position.contract
-    long_contract = spread.long_position.contract
-
-    short_bid, short_ask = client.get_bid_ask(
-      contract=short_contract,
-      req_id=400,
-      timeout=20,
-    )
-
-    long_bid, long_ask = client.get_bid_ask(
-      contract=long_contract,
-      req_id=401,
-      timeout=20,
-    )
-
-    close_credit = calculate_calendar_close_credit(
-      front_ask=short_ask,
-      back_bid=long_bid,
-    )
-
-    bag_contract = build_calendar_spread_contract(
-      symbol=spread.symbol,
-      short_option_contract=short_contract,
-      long_option_contract=long_contract,
-    )
-
-    order = build_calendar_spread_close_order(
-      close_credit=close_credit,
-      quantity=int(spread.quantity),
       transmit=should_transmit,
     )
 
-    order.smartComboRoutingParams = [
-      TagValue("NonGuaranteed", "1"),
-    ]
+    if exit is None:
+      print(f"No calendar spread positions found for {symbol}.")
+      return
 
-    print()
-    print(f"Calendar close order for {spread.symbol}")
-    print(f"Quantity: {spread.quantity}")
-
-    print()
-    print("Short/front option")
-    print(f"localSymbol: {short_contract.localSymbol}")
-    print(f"position: {spread.short_position.position}")
-    print(f"bid: {short_bid}")
-    print(f"ask: {short_ask}")
-
-    print()
-    print("Long/back option")
-    print(f"localSymbol: {long_contract.localSymbol}")
-    print(f"position: {spread.long_position.position}")
-    print(f"bid: {long_bid}")
-    print(f"ask: {long_ask}")
-
-    print()
-    print("Close pricing")
-    print(f"close_credit: {close_credit}")
-
-    print()
-    print("Close order preview")
-    print("Uses entry BAG direction, then SELL combo to close.")
-    print(f"action: {order.action}")
-    print(f"orderType: {order.orderType}")
-    print(f"totalQuantity: {order.totalQuantity}")
-    print(f"lmtPrice: {order.lmtPrice}")
-    print(f"transmit: {order.transmit}")
+    print_exit_preview(exit)
 
     order_id = client.place_order(
-      contract=bag_contract,
-      order=order,
+      contract=exit.bag_contract,
+      order=exit.order,
       wait_for_status=True,
       timeout=10,
     )
@@ -129,7 +89,7 @@ def main():
     print()
     print("Submitted to TWS")
     print(f"order_id: {order_id}")
-    print(f"transmit: {order.transmit}")
+    print(f"transmit: {exit.order.transmit}")
     print(f"latest_status: {client.order_status_by_id.get(order_id)}")
 
     if should_transmit:
@@ -147,7 +107,13 @@ def main():
       print("Final/latest status after wait")
       print(final_status)
 
-      if final_status is None or final_status["status"] != "Filled":
+      if (
+        policy.cancel_if_not_filled
+        and (
+          final_status is None
+          or final_status["status"] != "Filled"
+        )
+      ):
         print()
         print(
           f"Order was not filled within {policy.fill_timeout_seconds} seconds. "
