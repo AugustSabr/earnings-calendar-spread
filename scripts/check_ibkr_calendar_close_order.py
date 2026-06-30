@@ -3,6 +3,9 @@ import sys
 
 from dotenv import load_dotenv
 
+from earnings_calendar_spreads.brokers.ibkr_order_execution import (
+  submit_and_manage_order,
+)
 from earnings_calendar_spreads.brokers.ibkr_client import IBKRClient
 from earnings_calendar_spreads.core.order_policy import ExitOrderPolicy
 from earnings_calendar_spreads.workflow.prepare_calendar_exit import (
@@ -79,62 +82,29 @@ def main():
 
     print_exit_preview(exit)
 
-    order_id = client.place_order(
+    result = submit_and_manage_order(
+      client=client,
       contract=exit.bag_contract,
       order=exit.order,
-      wait_for_status=True,
-      timeout=10,
+      fill_timeout_seconds=policy.fill_timeout_seconds,
+      cancel_if_not_filled=policy.cancel_if_not_filled,
     )
 
     print()
     print("Submitted to TWS")
-    print(f"order_id: {order_id}")
-    print(f"transmit: {exit.order.transmit}")
-    print(f"latest_status: {client.order_status_by_id.get(order_id)}")
+    print(f"order_id: {result.order_id}")
+    print(f"transmit: {result.transmitted}")
+    print(f"initial_status: {result.initial_status}")
 
-    if should_transmit:
-      final_status = client.wait_for_order_status(
-        order_id=order_id,
-        target_statuses={
-          "Filled",
-          "Cancelled",
-          "Inactive",
-        },
-        timeout=policy.fill_timeout_seconds,
-      )
-
+    if result.final_status is not None:
       print()
       print("Final/latest status after wait")
-      print(final_status)
+      print(result.final_status)
 
-      if (
-        policy.cancel_if_not_filled
-        and (
-          final_status is None
-          or final_status["status"] != "Filled"
-        )
-      ):
-        print()
-        print(
-          f"Order was not filled within {policy.fill_timeout_seconds} seconds. "
-          "Cancelling order."
-        )
-
-        client.cancel_order(order_id)
-
-        cancelled_status = client.wait_for_order_status(
-          order_id=order_id,
-          target_statuses={
-            "Cancelled",
-            "Inactive",
-            "Filled",
-          },
-          timeout=10,
-        )
-
-        print()
-        print("Status after cancel attempt")
-        print(cancelled_status)
+    if result.cancel_status is not None:
+      print()
+      print("Status after cancel attempt")
+      print(result.cancel_status)
 
   finally:
     client.disconnect_and_wait()
