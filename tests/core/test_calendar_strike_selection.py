@@ -2,6 +2,7 @@ import pytest
 
 from earnings_calendar_spreads.core.calendar_strike_selection import (
   select_atm_strike,
+  select_common_atm_strike,
 )
 
 
@@ -50,4 +51,35 @@ def test_select_atm_strike_requires_positive_underlying_price():
         105.0,
       ],
       underlying_price=0,
+    )
+
+def test_select_common_atm_strike():
+  strike = select_common_atm_strike(
+    short_strikes=[
+      280.0,
+      282.5,
+      285.0,
+    ],
+    long_strikes=[
+      275.0,
+      280.0,
+      285.0,
+    ],
+    underlying_price=281.74,
+  )
+
+  assert strike == 280.0
+
+
+def test_select_common_atm_strike_requires_common_strikes():
+  with pytest.raises(ValueError, match="common strikes"):
+    select_common_atm_strike(
+      short_strikes=[
+        282.5,
+      ],
+      long_strikes=[
+        280.0,
+        285.0,
+      ],
+      underlying_price=281.74,
     )

@@ -1,5 +1,9 @@
-from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
-from earnings_calendar_spreads.brokers.ibkr_contracts import make_option_contract
+from earnings_calendar_spreads.brokers.ibkr_contracts import (
+  make_stock_contract,
+  make_option_contract,
+  make_option_expiration_query_contract,
+)
+
 
 def test_make_stock_contract():
   contract = make_stock_contract(
@@ -47,3 +51,18 @@ def test_make_option_contract_with_exchange():
   )
 
   assert contract.exchange == "SMART"
+
+def test_make_option_expiration_query_contract():
+  contract = make_option_expiration_query_contract(
+    symbol="aapl",
+    expiration="20260821",
+    right="c",
+  )
+
+  assert contract.symbol == "AAPL"
+  assert contract.secType == "OPT"
+  assert contract.currency == "USD"
+  assert contract.lastTradeDateOrContractMonth == "20260821"
+  assert contract.right == "C"
+  assert contract.multiplier == "100"
+  assert contract.exchange == ""

@@ -46,3 +46,28 @@ def make_option_contract(
     contract.exchange = exchange
 
   return contract
+
+def make_option_expiration_query_contract(
+  symbol: str,
+  expiration: str,
+  right: str,
+  exchange: str | None = None,
+) -> Contract:
+  """
+  Lager en incomplete option contract for å hente alle contracts
+  for én expiration/right.
+
+  Brukes til å finne hvilke strikes som faktisk finnes for en bestemt expiry.
+  """
+  contract = Contract()
+  contract.symbol = symbol.strip().upper()
+  contract.secType = "OPT"
+  contract.currency = "USD"
+  contract.lastTradeDateOrContractMonth = expiration
+  contract.right = right.strip().upper()
+  contract.multiplier = "100"
+
+  if exchange:
+    contract.exchange = exchange
+
+  return contract
