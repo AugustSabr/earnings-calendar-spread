@@ -20,6 +20,7 @@ from earnings_calendar_spreads.brokers.ibkr_calendar_plan import (
 )
 from earnings_calendar_spreads.brokers.ibkr_calendar_spread import (
   make_calendar_option_contracts,
+  build_calendar_spread_contract,
 )
 from earnings_calendar_spreads.brokers.ibkr_client import IBKRClient
 from earnings_calendar_spreads.data.yfinance_client import get_current_price
@@ -40,6 +41,21 @@ def print_contract(label, contract):
   print(f"localSymbol: {contract.localSymbol}")
   print(f"tradingClass: {contract.tradingClass}")
 
+def print_combo_contract(contract):
+  print()
+  print("Calendar BAG contract")
+  print(f"symbol: {contract.symbol}")
+  print(f"secType: {contract.secType}")
+  print(f"exchange: {contract.exchange}")
+  print(f"currency: {contract.currency}")
+
+  for index, leg in enumerate(contract.comboLegs, start=1):
+    print()
+    print(f"Leg {index}")
+    print(f"conId: {leg.conId}")
+    print(f"ratio: {leg.ratio}")
+    print(f"action: {leg.action}")
+    print(f"exchange: {leg.exchange}")
 
 def main():
   load_dotenv()
@@ -166,6 +182,14 @@ def main():
 
     print_contract("Short/front option", short_contract)
     print_contract("Long/back option", long_contract)
+
+    bag_contract = build_calendar_spread_contract(
+      symbol=plan.symbol,
+      short_option_contract=short_contract,
+      long_option_contract=long_contract,
+    )
+
+    print_combo_contract(bag_contract)
 
   finally:
     client.disconnect_and_wait()
