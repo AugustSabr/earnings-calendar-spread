@@ -51,3 +51,11 @@ python -m pip install .
 ```
 
 The project also requires TWS or IB Gateway to be running with API access enabled.
+
+## Local development
+
+Open PowerShell in the project folder:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
