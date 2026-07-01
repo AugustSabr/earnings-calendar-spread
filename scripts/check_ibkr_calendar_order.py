@@ -123,14 +123,22 @@ def main():
       client_id=client_id,
     )
 
-    execution = execute_calendar_entry(
-      client=client,
-      symbol=symbol,
-      earnings_date=earnings_date,
-      policy=policy,
-      primary_exchange=primary_exchange,
-      transmit=should_transmit,
-    )
+    try:
+      execution = execute_calendar_entry(
+        client=client,
+        symbol=symbol,
+        earnings_date=earnings_date,
+        policy=policy,
+        primary_exchange=primary_exchange,
+        transmit=should_transmit,
+      )
+
+    except TimeoutError as error:
+      print()
+      print(f"Could not prepare calendar entry for {symbol}.")
+      print("No order was sent.")
+      print(f"Reason: {error}")
+      return
 
     print_entry_preview(execution.prepared_entry)
     print_execution_result(execution.execution_result)
