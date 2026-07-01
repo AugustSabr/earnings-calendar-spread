@@ -9,6 +9,11 @@ from earnings_calendar_spreads.core.order_policy import EntryOrderPolicy
 from earnings_calendar_spreads.workflow.execute_calendar_entry import (
   execute_calendar_entry,
 )
+from earnings_calendar_spreads.storage.trade_log import (
+  append_trade_log_event,
+  make_calendar_trade_id,
+  make_trade_log_event,
+)
 
 
 def print_entry_preview(entry):
@@ -73,6 +78,51 @@ def print_execution_result(result):
     print("Status after cancel attempt")
     print(result.cancel_status)
 
+def log_calendar_opened_if_filled(entry, execution_result) -> bool:
+  if not execution_result.transmitted:
+    return False
+
+  final_status = execution_result.final_status
+
+  if final_status is None:
+    return False
+
+  if final_status.get("status") != "Filled":
+    return False
+
+  plan = entry.plan
+
+  trade_id = make_calendar_trade_id(
+    symbol=plan.symbol,
+    short_expiration=plan.short_expiration,
+    long_expiration=plan.long_expiration,
+    strike=plan.strike,
+    right=plan.right,
+  )
+
+  event = make_trade_log_event(
+    event_type="calendar_opened",
+    trade_id=trade_id,
+    symbol=plan.symbol,
+    data={
+      "entry_order_id": execution_result.order_id,
+      "entry_limit_debit": plan.net_debit,
+      "entry_avg_fill_price": final_status.get("avg_fill_price"),
+      "quantity": plan.quantity,
+      "short_expiration": plan.short_expiration,
+      "long_expiration": plan.long_expiration,
+      "strike": plan.strike,
+      "right": plan.right,
+      "short_local_symbol": entry.short_contract.localSymbol,
+      "long_local_symbol": entry.long_contract.localSymbol,
+      "short_con_id": entry.short_contract.conId,
+      "long_con_id": entry.long_contract.conId,
+    },
+  )
+
+  append_trade_log_event(event)
+
+  return True
 
 def main():
   load_dotenv()
@@ -142,6 +192,15 @@ def main():
 
     print_entry_preview(execution.prepared_entry)
     print_execution_result(execution.execution_result)
+
+    was_logged = log_calendar_opened_if_filled(
+      entry=execution.prepared_entry,
+      execution_result=execution.execution_result,
+    )
+
+    if was_logged:
+      print()
+      print("Logged calendar_opened event.")
 
   finally:
     client.disconnect_and_wait()
