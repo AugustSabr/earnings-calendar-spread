@@ -19,6 +19,32 @@ INFO_ERROR_CODES = {
   2158,
 }
 
+def select_underlying_price_from_ticks(
+  ticks: dict[str, float],
+) -> float | None:
+  bid = ticks.get("bid")
+  ask = ticks.get("ask")
+
+  if bid is not None and ask is not None:
+    return (bid + ask) / 2
+
+  if ticks.get("last") is not None:
+    return ticks["last"]
+
+  if ticks.get("mark") is not None:
+    return ticks["mark"]
+
+  delayed_bid = ticks.get("delayed_bid")
+  delayed_ask = ticks.get("delayed_ask")
+
+  if delayed_bid is not None and delayed_ask is not None:
+    return (delayed_bid + delayed_ask) / 2
+
+  if ticks.get("delayed_last") is not None:
+    return ticks["delayed_last"]
+
+  return None
+
 
 class IBKRClient(EWrapper, EClient):
   """
@@ -38,6 +64,9 @@ class IBKRClient(EWrapper, EClient):
 
     self.order_status_by_id = {}
     self.order_events = {}
+
+    self.underlying_price_by_req_id = {}
+    self.underlying_price_events = {}
 
     self.positions_event = threading.Event()
     self.positions = []
@@ -238,27 +267,51 @@ class IBKRClient(EWrapper, EClient):
     )
 
   def tickPrice(self, reqId, tickType, price, attrib):
-    """
-    Callback for market data-priser.
-    """
-
     if price < 0:
       return
 
-    bid, ask = self.bid_ask_by_req_id.get(reqId, (None, None))
+    bid_ask = self.bid_ask_by_req_id.get(reqId)
 
-    if tickType == 1:
-      bid = price
+    if bid_ask is not None:
+      if tickType == 1:
+        bid_ask["bid"] = price
 
-    if tickType == 2:
-      ask = price
+      if tickType == 2:
+        bid_ask["ask"] = price
 
-    self.bid_ask_by_req_id[reqId] = (bid, ask)
+      if "bid" in bid_ask and "ask" in bid_ask:
+        event = self.market_data_events.get(reqId)
+        if event:
+          event.set()
 
-    if bid is not None and ask is not None:
-      event = self.market_data_events.get(reqId)
-      if event:
-        event.set()
+    underlying_ticks = self.underlying_price_by_req_id.get(reqId)
+
+    if underlying_ticks is not None:
+      if tickType == 1:
+        underlying_ticks["bid"] = price
+
+      if tickType == 2:
+        underlying_ticks["ask"] = price
+
+      if tickType == 4:
+        underlying_ticks["last"] = price
+
+      if tickType == 37:
+        underlying_ticks["mark"] = price
+
+      if tickType == 66:
+        underlying_ticks["delayed_bid"] = price
+
+      if tickType == 67:
+        underlying_ticks["delayed_ask"] = price
+
+      if tickType == 68:
+        underlying_ticks["delayed_last"] = price
+
+      if select_underlying_price_from_ticks(underlying_ticks) is not None:
+        event = self.underlying_price_events.get(reqId)
+        if event:
+          event.set()
 
   def get_bid_ask(
     self,
@@ -266,10 +319,7 @@ class IBKRClient(EWrapper, EClient):
     req_id: int = 100,
     timeout: int = 10,
   ) -> tuple[float, float]:
-    """
-    Henter bid/ask for en IBKR Contract.
-    """
-    self.bid_ask_by_req_id[req_id] = (None, None)
+    self.bid_ask_by_req_id[req_id] = {}
 
     event = threading.Event()
     self.market_data_events[req_id] = event
@@ -285,14 +335,26 @@ class IBKRClient(EWrapper, EClient):
 
     try:
       if not event.wait(timeout):
-        bid, ask = self.bid_ask_by_req_id.get(req_id, (None, None))
-        raise TimeoutError(f"Timed out waiting for bid/ask. bid={bid}, ask={ask}")
+        bid_ask = self.bid_ask_by_req_id.get(req_id, {})
+        raise TimeoutError(
+          f"Timed out waiting for bid/ask. "
+          f"bid={bid_ask.get('bid')}, ask={bid_ask.get('ask')}"
+        )
 
-      bid, ask = self.bid_ask_by_req_id[req_id]
-      return bid, ask
+      bid_ask = self.bid_ask_by_req_id[req_id]
+
+      return (
+        bid_ask["bid"],
+        bid_ask["ask"],
+      )
 
     finally:
-      self.cancelMktData(req_id)
+      try:
+        self.cancelMktData(req_id)
+      except Exception:
+        pass
+
+      self.bid_ask_by_req_id.pop(req_id, None)
       self.market_data_events.pop(req_id, None)
 
   def get_next_request_id(self) -> int:
@@ -443,3 +505,55 @@ class IBKRClient(EWrapper, EClient):
 
     finally:
       self.cancelPositions()
+
+  def get_underlying_price(
+    self,
+    contract,
+    req_id: int = 100,
+    timeout: int = 10,
+  ) -> float:
+    """
+    Henter underliggende aksjepris fra IBKR.
+
+    Bruker bid/ask mid hvis tilgjengelig.
+    Faller tilbake til last price hvis bid/ask ikke sendes.
+    """
+    self.underlying_price_by_req_id[req_id] = {}
+
+    event = threading.Event()
+    self.underlying_price_events[req_id] = event
+
+    self.reqMktData(
+      req_id,
+      contract,
+      "",
+      False,
+      False,
+      [],
+    )
+
+    try:
+      if not event.wait(timeout):
+        ticks = self.underlying_price_by_req_id.get(req_id, {})
+        raise TimeoutError(
+          f"Timed out waiting for underlying price. ticks={ticks}"
+        )
+
+      ticks = self.underlying_price_by_req_id[req_id]
+      price = select_underlying_price_from_ticks(ticks)
+
+      if price is None:
+        raise TimeoutError(
+          f"No usable underlying price ticks received. ticks={ticks}"
+        )
+
+      return price
+
+    finally:
+      try:
+        self.cancelMktData(req_id)
+      except Exception:
+        pass
+      self.underlying_price_by_req_id.pop(req_id, None)
+      self.underlying_price_events.pop(req_id, None)
+      self.bid_ask_by_req_id.pop(req_id, None)

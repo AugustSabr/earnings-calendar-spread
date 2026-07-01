@@ -31,6 +31,7 @@ def build_calendar_spread_plan_from_ibkr_chain(
   selected_parameters = select_option_chain_parameters(
     parameters=parameters,
     preferred_exchange=preferred_exchange,
+    underlying_symbol=symbol,
   )
 
   expiration_dates = [

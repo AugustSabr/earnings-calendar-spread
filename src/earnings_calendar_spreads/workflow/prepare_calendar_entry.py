@@ -22,7 +22,7 @@ from earnings_calendar_spreads.core.calendar_spread import (
   price_calendar_spread_plan,
 )
 from earnings_calendar_spreads.core.models import CalendarSpreadPlan
-from earnings_calendar_spreads.data.yfinance_client import get_current_price
+from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
 
 
 @dataclass(frozen=True)
@@ -56,6 +56,55 @@ def resolve_first_contract(
 
   return details[0].contract
 
+def resolve_standard_option_contract(
+  client,
+  contract,
+  symbol: str,
+):
+  normalized_symbol = symbol.strip().upper()
+  contract_details = client.get_contract_details(contract)
+
+  standard_contracts = [
+    details.contract
+    for details in contract_details
+    if details.contract.tradingClass == normalized_symbol
+    and str(details.contract.multiplier) == "100"
+  ]
+
+  smart_standard_contracts = [
+    contract
+    for contract in standard_contracts
+    if contract.exchange == "SMART"
+  ]
+
+  if smart_standard_contracts:
+    selected_contract = smart_standard_contracts[0]
+    selected_contract.exchange = "SMART"
+    return selected_contract
+
+  if standard_contracts:
+    selected_contract = standard_contracts[0]
+    selected_contract.exchange = "SMART"
+    return selected_contract
+
+  summaries = [
+    (
+      details.contract.localSymbol,
+      details.contract.conId,
+      details.contract.exchange,
+      details.contract.tradingClass,
+      details.contract.multiplier,
+      details.contract.lastTradeDateOrContractMonth,
+      details.contract.strike,
+      details.contract.right,
+    )
+    for details in contract_details
+  ]
+
+  raise ValueError(
+    f"No standard option contract found for {symbol}. "
+    f"Available contracts: {summaries}"
+  )
 
 def prepare_calendar_entry(
   client,
@@ -67,26 +116,42 @@ def prepare_calendar_entry(
   transmit: bool = False,
 ) -> PreparedCalendarEntry:
   """
-  Forbereder en calendar entry fra IBKR/yfinance-data.
+  Forbereder en calendar entry fra IBKR-data.
 
   Sender ikke ordre.
   """
-  stock_details = client.get_stock_contract_details(
+  stock_contract_details = client.get_stock_contract_details(
     symbol=symbol,
     primary_exchange=primary_exchange,
   )
 
-  if not stock_details:
-    raise ValueError("No stock contract details found.")
+  if not stock_contract_details:
+    raise ValueError(f"No stock contract details found for {symbol}")
 
-  stock_contract = stock_details[0].contract
+  resolved_stock_contract = stock_contract_details[0].contract
 
-  parameters = client.get_option_chain_parameters(
-    underlying_symbol=symbol,
-    underlying_con_id=stock_contract.conId,
+  quote_stock_contract = make_stock_contract(
+    symbol=symbol,
+    primary_exchange=primary_exchange,
   )
 
-  underlying_price = get_current_price(symbol)
+  try:
+    underlying_price = client.get_underlying_price(
+      contract=quote_stock_contract,
+      req_id=client.get_next_request_id(),
+      timeout=30,
+    )
+
+  except TimeoutError as error:
+    raise TimeoutError(
+      f"Timed out waiting for IBKR underlying price for {symbol}. {error}"
+    ) from error
+
+  parameters = client.get_option_chain_parameters(
+    symbol,
+    resolved_stock_contract.conId,
+    timeout=20,
+  )
 
   plan = build_calendar_spread_plan_from_ibkr_chain(
     symbol=symbol,
@@ -108,25 +173,51 @@ def prepare_calendar_entry(
     plan,
   )
 
-  short_contract = resolve_first_contract(
+  short_contract = resolve_standard_option_contract(
     client=client,
     contract=short_generic_contract,
-  )
-  long_contract = resolve_first_contract(
-    client=client,
-    contract=long_generic_contract,
+    symbol=symbol,
   )
 
-  short_bid, short_ask = client.get_bid_ask(
-    contract=short_contract,
-    req_id=300,
-    timeout=20,
+  long_contract = resolve_standard_option_contract(
+    client=client,
+    contract=long_generic_contract,
+    symbol=symbol,
   )
-  long_bid, long_ask = client.get_bid_ask(
-    contract=long_contract,
-    req_id=301,
-    timeout=20,
-  )
+
+  try:
+    short_bid, short_ask = client.get_bid_ask(
+      contract=short_contract,
+      req_id=client.get_next_request_id(),
+      timeout=30,
+    )
+
+  except TimeoutError as error:
+    raise TimeoutError(
+      f"Timed out waiting for short/front option quote "
+      f"{short_contract.localSymbol} "
+      f"conId={short_contract.conId} "
+      f"exchange={short_contract.exchange} "
+      f"tradingClass={short_contract.tradingClass}. "
+      f"{error}"
+    ) from error
+
+  try:
+    long_bid, long_ask = client.get_bid_ask(
+      contract=long_contract,
+      req_id=client.get_next_request_id(),
+      timeout=30,
+    )
+
+  except TimeoutError as error:
+    raise TimeoutError(
+      f"Timed out waiting for long/back option quote "
+      f"{long_contract.localSymbol} "
+      f"conId={long_contract.conId} "
+      f"exchange={long_contract.exchange} "
+      f"tradingClass={long_contract.tradingClass}. "
+      f"{error}"
+    ) from error
 
   priced_plan = price_calendar_spread_plan(
     plan=plan,
