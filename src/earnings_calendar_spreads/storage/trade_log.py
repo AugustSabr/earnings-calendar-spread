@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 
 DEFAULT_TRADE_LOG_PATH = Path("runtime/trade_log.jsonl")
@@ -10,12 +11,12 @@ DEFAULT_TRADE_LOG_PATH = Path("runtime/trade_log.jsonl")
 
 @dataclass(frozen=True)
 class TradeLogEvent:
+  event_id: str
   timestamp: str
   event_type: str
   trade_id: str
   symbol: str
   data: dict[str, Any]
-
 
 def utc_now_iso() -> str:
   return datetime.now(timezone.utc).isoformat()
@@ -45,8 +46,10 @@ def make_trade_log_event(
   symbol: str,
   data: dict[str, Any],
   timestamp: str | None = None,
+  event_id: str | None = None,
 ) -> TradeLogEvent:
   return TradeLogEvent(
+    event_id=event_id or str(uuid4()),
     timestamp=timestamp or utc_now_iso(),
     event_type=event_type,
     trade_id=trade_id,
@@ -88,6 +91,7 @@ def read_trade_log_events(
 
       events.append(
         TradeLogEvent(
+          event_id=raw_event["event_id"],
           timestamp=raw_event["timestamp"],
           event_type=raw_event["event_type"],
           trade_id=raw_event["trade_id"],

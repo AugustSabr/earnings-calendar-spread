@@ -28,6 +28,7 @@ def test_append_and_read_trade_log_event(tmp_path):
       "quantity": 1,
     },
     timestamp="2026-07-01T19:45:00+00:00",
+    event_id="event-1",
   )
 
   append_trade_log_event(
@@ -54,6 +55,7 @@ def test_get_open_trade_ids_removes_closed_trades():
     trade_id=trade_id,
     symbol="AAPL",
     data={},
+    event_id="open-event",
   )
 
   closed = make_trade_log_event(
@@ -61,6 +63,7 @@ def test_get_open_trade_ids_removes_closed_trades():
     trade_id=trade_id,
     symbol="AAPL",
     data={},
+    event_id="close-event",
   )
 
   assert get_open_trade_ids([opened]) == {trade_id}
@@ -89,6 +92,7 @@ def test_get_open_trade_events_returns_open_events():
     trade_id=open_trade_id,
     symbol="AAPL",
     data={},
+    event_id="aapl-open",
   )
 
   closed_open_event = make_trade_log_event(
@@ -96,6 +100,7 @@ def test_get_open_trade_events_returns_open_events():
     trade_id=closed_trade_id,
     symbol="MSFT",
     data={},
+    event_id="msft-open",
   )
 
   closed_event = make_trade_log_event(
@@ -103,6 +108,7 @@ def test_get_open_trade_events_returns_open_events():
     trade_id=closed_trade_id,
     symbol="MSFT",
     data={},
+    event_id="msft-close",
   )
 
   assert get_open_trade_events(
