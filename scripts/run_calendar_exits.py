@@ -43,6 +43,14 @@ from earnings_calendar_spreads.workflow.execute_calendar_exit import (
 from earnings_calendar_spreads.workflow.prepare_calendar_exit import (
   prepare_calendar_exit,
 )
+from earnings_calendar_spreads.brokers.ibkr_option_chain import (
+  ibkr_expiration_to_iso,
+)
+from earnings_calendar_spreads.storage.trade_log import (
+  append_trade_log_event,
+  make_calendar_trade_id,
+  make_trade_log_event,
+)
 
 def print_spread_summary(spread):
   short_contract = spread.short_position.contract
@@ -107,6 +115,62 @@ def get_mode(args):
     return "list"
 
   return modes[0].replace("--", "")
+
+def log_calendar_closed_if_filled(prepared_exit, execution_result) -> bool:
+  if not execution_result.transmitted:
+    return False
+
+  final_status = execution_result.final_status
+
+  if final_status is None:
+    return False
+
+  if final_status.get("status") != "Filled":
+    return False
+
+  spread = prepared_exit.spread
+  short_contract = prepared_exit.short_contract
+  long_contract = prepared_exit.long_contract
+
+  trade_id = make_calendar_trade_id(
+    symbol=spread.symbol,
+    short_expiration=ibkr_expiration_to_iso(
+      short_contract.lastTradeDateOrContractMonth,
+    ),
+    long_expiration=ibkr_expiration_to_iso(
+      long_contract.lastTradeDateOrContractMonth,
+    ),
+    strike=short_contract.strike,
+    right=short_contract.right,
+  )
+
+  event = make_trade_log_event(
+    event_type="calendar_closed",
+    trade_id=trade_id,
+    symbol=spread.symbol,
+    data={
+      "exit_order_id": execution_result.order_id,
+      "exit_limit_credit": prepared_exit.close_credit,
+      "exit_avg_fill_price": final_status.get("avg_fill_price"),
+      "quantity": int(spread.quantity),
+      "short_expiration": ibkr_expiration_to_iso(
+        short_contract.lastTradeDateOrContractMonth,
+      ),
+      "long_expiration": ibkr_expiration_to_iso(
+        long_contract.lastTradeDateOrContractMonth,
+      ),
+      "strike": short_contract.strike,
+      "right": short_contract.right,
+      "short_local_symbol": short_contract.localSymbol,
+      "long_local_symbol": long_contract.localSymbol,
+      "short_con_id": short_contract.conId,
+      "long_con_id": long_contract.conId,
+    },
+  )
+
+  append_trade_log_event(event)
+
+  return True
 
 
 def main():
@@ -201,6 +265,15 @@ def main():
 
       print_prepared_exit(execution.prepared_exit)
       print_execution_result(execution.execution_result)
+
+      was_logged = log_calendar_closed_if_filled(
+        prepared_exit=execution.prepared_exit,
+        execution_result=execution.execution_result,
+      )
+
+      if was_logged:
+        print()
+        print("Logged calendar_closed event.")
 
   finally:
     client.disconnect_and_wait()
