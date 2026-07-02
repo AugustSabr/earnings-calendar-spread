@@ -5,6 +5,7 @@ from earnings_calendar_spreads.core.position_sizing import (
   apply_budget_to_calendar_plan,
   calculate_calendar_quantity_for_budget,
   calculate_calendar_spread_debit_usd,
+  calculate_budget_from_account_fraction,
 )
 
 
@@ -82,4 +83,30 @@ def test_apply_budget_to_calendar_plan_raises_when_budget_too_small():
     apply_budget_to_calendar_plan(
       plan=plan,
       max_debit_per_symbol_usd=1000.0,
+    )
+
+def test_calculate_budget_from_account_fraction():
+  assert calculate_budget_from_account_fraction(
+    account_value_snapshot_usd=30_000.0,
+    risk_fraction=0.07,
+  ) == 2100.0
+
+
+def test_calculate_budget_from_account_fraction_rejects_invalid_values():
+  with pytest.raises(ValueError, match="account_value_snapshot_usd"):
+    calculate_budget_from_account_fraction(
+      account_value_snapshot_usd=0,
+      risk_fraction=0.07,
+    )
+
+  with pytest.raises(ValueError, match="risk_fraction"):
+    calculate_budget_from_account_fraction(
+      account_value_snapshot_usd=30_000,
+      risk_fraction=0,
+    )
+
+  with pytest.raises(ValueError, match="<= 1"):
+    calculate_budget_from_account_fraction(
+      account_value_snapshot_usd=30_000,
+      risk_fraction=1.1,
     )

@@ -66,3 +66,18 @@ def apply_budget_to_calendar_plan(
     plan,
     quantity=quantity,
   )
+
+def calculate_budget_from_account_fraction(
+  account_value_snapshot_usd: float,
+  risk_fraction: float,
+) -> float:
+  if account_value_snapshot_usd <= 0:
+    raise ValueError("account_value_snapshot_usd must be positive.")
+
+  if risk_fraction <= 0:
+    raise ValueError("risk_fraction must be positive.")
+
+  if risk_fraction > 1:
+    raise ValueError("risk_fraction must be <= 1.")
+
+  return account_value_snapshot_usd * risk_fraction
