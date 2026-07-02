@@ -14,6 +14,9 @@ from earnings_calendar_spreads.storage.trade_log import (
   make_calendar_trade_id,
   make_trade_log_event,
 )
+from earnings_calendar_spreads.workflow.calendar_position_reconciliation import (
+  get_current_matching_calendar_spread,
+)
 
 
 def print_entry_preview(entry):
@@ -78,16 +81,32 @@ def print_execution_result(result):
     print("Status after cancel attempt")
     print(result.cancel_status)
 
-def log_calendar_opened_if_filled(entry, execution_result) -> bool:
+def log_calendar_opened_if_confirmed(
+  client,
+  entry,
+  execution_result,
+) -> bool:
   if not execution_result.transmitted:
     return False
 
   final_status = execution_result.final_status
 
-  if final_status is None:
-    return False
+  order_status_confirms_fill = (
+    final_status is not None
+    and final_status.get("status") == "Filled"
+  )
 
-  if final_status.get("status") != "Filled":
+  matching_spread = get_current_matching_calendar_spread(
+    client=client,
+    short_contract=entry.short_contract,
+    long_contract=entry.long_contract,
+    symbol=entry.plan.symbol,
+    wait_seconds=3,
+  )
+
+  position_confirms_fill = matching_spread is not None
+
+  if not order_status_confirms_fill and not position_confirms_fill:
     return False
 
   plan = entry.plan
@@ -100,14 +119,35 @@ def log_calendar_opened_if_filled(entry, execution_result) -> bool:
     right=plan.right,
   )
 
+  confirmation_source = (
+    "order_status"
+    if order_status_confirms_fill
+    else "positions_reconciliation"
+  )
+
   event = make_trade_log_event(
     event_type="calendar_opened",
     trade_id=trade_id,
     symbol=plan.symbol,
     data={
+      "confirmation_source": confirmation_source,
       "entry_order_id": execution_result.order_id,
+      "entry_order_status": (
+        final_status.get("status")
+        if final_status is not None
+        else None
+      ),
       "entry_limit_debit": plan.net_debit,
-      "entry_avg_fill_price": final_status.get("avg_fill_price"),
+      "entry_avg_fill_price": (
+        final_status.get("avg_fill_price")
+        if final_status is not None
+        else None
+      ),
+      "matched_position_quantity": (
+        str(matching_spread.quantity)
+        if matching_spread is not None
+        else None
+      ),
       "quantity": plan.quantity,
       "short_expiration": plan.short_expiration,
       "long_expiration": plan.long_expiration,
@@ -193,7 +233,8 @@ def main():
     print_entry_preview(execution.prepared_entry)
     print_execution_result(execution.execution_result)
 
-    was_logged = log_calendar_opened_if_filled(
+    was_logged = log_calendar_opened_if_confirmed(
+      client=client,
       entry=execution.prepared_entry,
       execution_result=execution.execution_result,
     )
