@@ -33,21 +33,34 @@ def get_required_env(name: str) -> str:
   return value
 
 
-def get_positions_message(client: IBKRClient) -> str:
-  positions = client.get_positions()
-  spreads = find_calendar_spread_positions(positions)
+def get_positions_message() -> str:
+  host = os.getenv("IBKR_HOST", "127.0.0.1")
+  port = int(os.getenv("IBKR_PORT", "7497"))
+  client_id = int(os.getenv("IBKR_CLIENT_ID", "180"))
 
-  return format_calendar_spread_positions(spreads)
+  client = IBKRClient()
+
+  try:
+    client.connect_and_start(
+      host=host,
+      port=port,
+      client_id=client_id,
+    )
+
+    positions = client.get_positions()
+    spreads = find_calendar_spread_positions(positions)
+
+    return format_calendar_spread_positions(spreads)
+
+  finally:
+    client.disconnect_and_wait()
 
 
-def handle_command(
-  text: str,
-  client: IBKRClient,
-) -> str | None:
+def handle_command(text: str) -> str | None:
   command = text.strip().lower()
 
   if command == "/positions":
-    return get_positions_message(client)
+    return get_positions_message()
 
   if command == "/trades":
     return get_trades_message()
@@ -81,19 +94,8 @@ def main():
     chat_id=get_required_env("TELEGRAM_CHAT_ID"),
   )
 
-  host = os.getenv("IBKR_HOST", "127.0.0.1")
-  port = int(os.getenv("IBKR_PORT", "7497"))
-  client_id = int(os.getenv("IBKR_CLIENT_ID", "180"))
-
-  ibkr_client = IBKRClient()
   offset = None
   stop_event = threading.Event()
-
-  ibkr_client.connect_and_start(
-    host=host,
-    port=port,
-    client_id=client_id,
-  )
 
   threading.Thread(
     target=wait_for_exit,
@@ -123,10 +125,7 @@ def main():
         if chat_id != telegram_config.chat_id:
           continue
 
-        response = handle_command(
-          text=text,
-          client=ibkr_client,
-        )
+        response = handle_command(text=text)
 
         if response is None:
           continue
@@ -141,7 +140,6 @@ def main():
 
   finally:
     print("Stopping Telegram bot...")
-    ibkr_client.disconnect_and_wait()
     print("Stopped.")
 
 
