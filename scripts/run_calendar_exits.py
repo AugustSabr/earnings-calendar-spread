@@ -51,6 +51,9 @@ from earnings_calendar_spreads.storage.trade_log import (
   make_calendar_trade_id,
   make_trade_log_event,
 )
+from earnings_calendar_spreads.workflow.calendar_position_reconciliation import (
+  get_current_matching_calendar_spread,
+)
 
 def print_spread_summary(spread):
   short_contract = spread.short_position.contract
@@ -116,32 +119,57 @@ def get_mode(args):
 
   return modes[0].replace("--", "")
 
-def log_calendar_closed_if_filled(prepared_exit, execution_result) -> bool:
+def log_calendar_closed_if_confirmed(
+  client,
+  prepared_exit,
+  execution_result,
+) -> bool:
   if not execution_result.transmitted:
     return False
 
   final_status = execution_result.final_status
 
-  if final_status is None:
-    return False
+  order_status_confirms_close = (
+    final_status is not None
+    and final_status.get("status") == "Filled"
+  )
 
-  if final_status.get("status") != "Filled":
+  matching_spread = get_current_matching_calendar_spread(
+    client=client,
+    short_contract=prepared_exit.short_contract,
+    long_contract=prepared_exit.long_contract,
+    symbol=prepared_exit.spread.symbol,
+    wait_seconds=3,
+  )
+
+  position_confirms_close = matching_spread is None
+
+  if not order_status_confirms_close and not position_confirms_close:
     return False
 
   spread = prepared_exit.spread
   short_contract = prepared_exit.short_contract
   long_contract = prepared_exit.long_contract
 
+  short_expiration = ibkr_expiration_to_iso(
+    short_contract.lastTradeDateOrContractMonth,
+  )
+  long_expiration = ibkr_expiration_to_iso(
+    long_contract.lastTradeDateOrContractMonth,
+  )
+
   trade_id = make_calendar_trade_id(
     symbol=spread.symbol,
-    short_expiration=ibkr_expiration_to_iso(
-      short_contract.lastTradeDateOrContractMonth,
-    ),
-    long_expiration=ibkr_expiration_to_iso(
-      long_contract.lastTradeDateOrContractMonth,
-    ),
+    short_expiration=short_expiration,
+    long_expiration=long_expiration,
     strike=short_contract.strike,
     right=short_contract.right,
+  )
+
+  confirmation_source = (
+    "order_status"
+    if order_status_confirms_close
+    else "positions_reconciliation"
   )
 
   event = make_trade_log_event(
@@ -149,16 +177,22 @@ def log_calendar_closed_if_filled(prepared_exit, execution_result) -> bool:
     trade_id=trade_id,
     symbol=spread.symbol,
     data={
+      "confirmation_source": confirmation_source,
       "exit_order_id": execution_result.order_id,
+      "exit_order_status": (
+        final_status.get("status")
+        if final_status is not None
+        else None
+      ),
       "exit_limit_credit": prepared_exit.close_credit,
-      "exit_avg_fill_price": final_status.get("avg_fill_price"),
+      "exit_avg_fill_price": (
+        final_status.get("avg_fill_price")
+        if final_status is not None
+        else None
+      ),
       "quantity": int(spread.quantity),
-      "short_expiration": ibkr_expiration_to_iso(
-        short_contract.lastTradeDateOrContractMonth,
-      ),
-      "long_expiration": ibkr_expiration_to_iso(
-        long_contract.lastTradeDateOrContractMonth,
-      ),
+      "short_expiration": short_expiration,
+      "long_expiration": long_expiration,
       "strike": short_contract.strike,
       "right": short_contract.right,
       "short_local_symbol": short_contract.localSymbol,
@@ -171,7 +205,6 @@ def log_calendar_closed_if_filled(prepared_exit, execution_result) -> bool:
   append_trade_log_event(event)
 
   return True
-
 
 def main():
   load_dotenv()
@@ -266,7 +299,8 @@ def main():
       print_prepared_exit(execution.prepared_exit)
       print_execution_result(execution.execution_result)
 
-      was_logged = log_calendar_closed_if_filled(
+      was_logged = log_calendar_closed_if_confirmed(
+        client=client,
         prepared_exit=execution.prepared_exit,
         execution_result=execution.execution_result,
       )
