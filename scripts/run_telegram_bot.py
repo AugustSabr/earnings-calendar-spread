@@ -154,6 +154,18 @@ def get_status_message() -> str:
     f"Open logged trades: {len(open_trade_events)}",
   ])
 
+def send_bot_lifecycle_message(
+  config: TelegramConfig,
+  text: str,
+) -> None:
+  try:
+    send_telegram_message(
+      config=config,
+      text=text,
+    )
+  except Exception as error:
+    print(f"Failed to send Telegram lifecycle message: {error}")
+
 def main():
   load_dotenv()
 
@@ -173,6 +185,11 @@ def main():
 
   print("Telegram bot is running.")
   print("Type q, quit, or exit and press Enter to stop.")
+
+  send_bot_lifecycle_message(
+    config=telegram_config,
+    text="Bot online.",
+  )
 
   try:
     while not stop_event.is_set():
@@ -208,6 +225,10 @@ def main():
 
   finally:
     print("Stopping Telegram bot...")
+    send_bot_lifecycle_message(
+      config=telegram_config,
+      text="Bot offline.",
+    )
     print("Stopped.")
 
 
