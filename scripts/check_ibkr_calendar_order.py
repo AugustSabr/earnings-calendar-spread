@@ -17,6 +17,10 @@ from earnings_calendar_spreads.storage.trade_log import (
 from earnings_calendar_spreads.workflow.calendar_position_reconciliation import (
   get_current_matching_calendar_spread,
 )
+from earnings_calendar_spreads.core.money import format_usd
+from earnings_calendar_spreads.core.position_sizing import (
+  calculate_calendar_spread_debit_usd,
+)
 
 
 def print_entry_preview(entry):
@@ -48,6 +52,13 @@ def print_entry_preview(entry):
   print()
   print("Pricing")
   print(f"net_debit: {plan.net_debit}")
+
+  total_debit = calculate_calendar_spread_debit_usd(
+    quoted_debit=plan.net_debit,
+    quantity=plan.quantity,
+  )
+
+  print(f"estimated_total_debit: {format_usd(total_debit)}")
 
   print()
   print("BAG contract")
@@ -164,6 +175,13 @@ def log_calendar_opened_if_confirmed(
 
   return True
 
+def parse_max_debit_per_symbol_usd(args: list[str]) -> float | None:
+  for arg in args:
+    if arg.startswith("--max-debit="):
+      return float(arg.split("=", 1)[1])
+
+  return None
+
 def main():
   load_dotenv()
 
@@ -198,6 +216,10 @@ def main():
 
   should_transmit = "--transmit" in sys.argv
 
+  max_debit_per_symbol_usd = parse_max_debit_per_symbol_usd(
+    sys.argv[1:],
+  )
+
   policy = EntryOrderPolicy()
 
   host = os.getenv("IBKR_HOST", "127.0.0.1")
@@ -221,6 +243,7 @@ def main():
         policy=policy,
         primary_exchange=primary_exchange,
         transmit=should_transmit,
+        max_debit_per_symbol_usd=max_debit_per_symbol_usd,
       )
 
     except TimeoutError as error:

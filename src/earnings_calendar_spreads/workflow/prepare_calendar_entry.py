@@ -23,7 +23,9 @@ from earnings_calendar_spreads.core.calendar_spread import (
 )
 from earnings_calendar_spreads.core.models import CalendarSpreadPlan
 from earnings_calendar_spreads.brokers.ibkr_contracts import make_stock_contract
-
+from earnings_calendar_spreads.core.position_sizing import (
+  apply_budget_to_calendar_plan,
+)
 
 @dataclass(frozen=True)
 class PreparedCalendarEntry:
@@ -114,6 +116,7 @@ def prepare_calendar_entry(
   right: str = "C",
   quantity: int = 1,
   transmit: bool = False,
+  max_debit_per_symbol_usd: float | None = None,
 ) -> PreparedCalendarEntry:
   """
   Forbereder en calendar entry fra IBKR-data.
@@ -224,6 +227,12 @@ def prepare_calendar_entry(
     front_bid=short_bid,
     back_ask=long_ask,
   )
+
+  if max_debit_per_symbol_usd is not None:
+    priced_plan = apply_budget_to_calendar_plan(
+      plan=priced_plan,
+      max_debit_per_symbol_usd=max_debit_per_symbol_usd,
+    )
 
   bag_contract = build_calendar_spread_contract(
     symbol=priced_plan.symbol,

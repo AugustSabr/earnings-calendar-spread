@@ -30,6 +30,7 @@ def execute_calendar_entry(
   right: str = "C",
   quantity: int = 1,
   transmit: bool = False,
+  max_debit_per_symbol_usd: float | None = None,
 ) -> CalendarEntryExecution:
   """
   Forbereder og sender/stager en calendar entry.
