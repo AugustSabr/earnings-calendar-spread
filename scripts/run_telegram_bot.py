@@ -23,6 +23,11 @@ from earnings_calendar_spreads.notifications.telegram_trades import (
   filter_trade_events_since,
   format_trade_log_events,
 )
+from earnings_calendar_spreads.workflow.trading_pause import (
+  is_trading_paused,
+  pause_trading,
+  resume_trading,
+)
 
 def get_required_env(name: str) -> str:
   value = os.getenv(name)
@@ -63,8 +68,20 @@ def handle_command(text: str) -> str | None:
   if command.startswith("/log"):
     return get_log_message(command)
 
-  return None
+  if command == "/status":
+    return get_status_message()
 
+  if command == "/pause":
+    pause_trading()
+
+    return "Trading paused. New entries should be skipped."
+
+  if command == "/resume":
+    resume_trading()
+
+    return "Trading resumed. New entries are allowed."
+
+  return None
 
 def wait_for_exit(stop_event: threading.Event):
   while not stop_event.is_set():
@@ -120,6 +137,22 @@ def get_log_message(command: str) -> str:
     events=recent_events,
     days=days,
   )
+
+def get_status_message() -> str:
+  try:
+    events = read_trade_log_events()
+  except FileNotFoundError:
+    events = []
+
+  open_trade_events = get_open_trade_events(events)
+
+  paused_text = "yes" if is_trading_paused() else "no"
+
+  return "\n".join([
+    "Bot status",
+    f"Trading paused: {paused_text}",
+    f"Open logged trades: {len(open_trade_events)}",
+  ])
 
 def main():
   load_dotenv()
