@@ -15,6 +15,13 @@ from earnings_calendar_spreads.notifications.telegram import (
 from earnings_calendar_spreads.notifications.telegram_positions import (
   format_calendar_spread_positions,
 )
+from earnings_calendar_spreads.notifications.telegram_trades import (
+  format_open_trade_events,
+)
+from earnings_calendar_spreads.storage.trade_log import (
+  get_open_trade_events,
+  read_trade_log_events,
+)
 
 
 def get_required_env(name: str) -> str:
@@ -39,11 +46,11 @@ def handle_command(
 ) -> str | None:
   command = text.strip().lower()
 
-  if command == "/ping":
-    return "pong"
-
   if command == "/positions":
     return get_positions_message(client)
+
+  if command == "/trades":
+    return get_trades_message()
 
   return None
 
@@ -56,6 +63,15 @@ def wait_for_exit(stop_event: threading.Event):
       stop_event.set()
       return
 
+def get_trades_message() -> str:
+  try:
+    events = read_trade_log_events()
+  except FileNotFoundError:
+    events = []
+
+  open_trade_events = get_open_trade_events(events)
+
+  return format_open_trade_events(open_trade_events)
 
 def main():
   load_dotenv()
@@ -86,7 +102,6 @@ def main():
   ).start()
 
   print("Telegram bot is running.")
-  print("Supported commands: /ping, /positions")
   print("Type q, quit, or exit and press Enter to stop.")
 
   try:
