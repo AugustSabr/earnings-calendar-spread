@@ -15,14 +15,14 @@ from earnings_calendar_spreads.notifications.telegram import (
 from earnings_calendar_spreads.notifications.telegram_positions import (
   format_calendar_spread_positions,
 )
-from earnings_calendar_spreads.notifications.telegram_trades import (
-  format_open_trade_events,
-)
 from earnings_calendar_spreads.storage.trade_log import (
   get_open_trade_events,
   read_trade_log_events,
 )
-
+from earnings_calendar_spreads.notifications.telegram_trades import (
+  filter_trade_events_since,
+  format_trade_log_events,
+)
 
 def get_required_env(name: str) -> str:
   value = os.getenv(name)
@@ -31,7 +31,6 @@ def get_required_env(name: str) -> str:
     raise ValueError(f"Missing {name} in .env")
 
   return value
-
 
 def get_positions_message() -> str:
   host = os.getenv("IBKR_HOST", "127.0.0.1")
@@ -55,15 +54,14 @@ def get_positions_message() -> str:
   finally:
     client.disconnect_and_wait()
 
-
 def handle_command(text: str) -> str | None:
   command = text.strip().lower()
 
   if command == "/positions":
     return get_positions_message()
 
-  if command == "/trades":
-    return get_trades_message()
+  if command.startswith("/log"):
+    return get_log_message(command)
 
   return None
 
@@ -85,6 +83,43 @@ def get_trades_message() -> str:
   open_trade_events = get_open_trade_events(events)
 
   return format_open_trade_events(open_trade_events)
+
+def parse_log_days(command: str) -> int:
+  parts = command.split()
+
+  if len(parts) == 1:
+    return 1
+
+  if len(parts) != 2:
+    raise ValueError("Usage: /log [days]")
+
+  days = int(parts[1])
+
+  if days <= 0:
+    raise ValueError("days must be positive.")
+
+  return days
+
+def get_log_message(command: str) -> str:
+  try:
+    days = parse_log_days(command)
+  except ValueError:
+    return "Usage: /log [days]"
+
+  try:
+    events = read_trade_log_events()
+  except FileNotFoundError:
+    events = []
+
+  recent_events = filter_trade_events_since(
+    events=events,
+    days=days,
+  )
+
+  return format_trade_log_events(
+    events=recent_events,
+    days=days,
+  )
 
 def main():
   load_dotenv()
