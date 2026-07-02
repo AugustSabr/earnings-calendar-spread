@@ -132,6 +132,28 @@ net_debit = back_ask - front_bid
 
 The first automated version should use conservative limit orders.
 
+## Position sizing
+
+Calendar spreads are priced as option quotes, but the actual cash debit is usually:
+
+```text
+quoted spread debit * 100 * quantity
+```
+
+This is because standard US equity option contracts normally represent 100 shares.
+
+Example:
+
+```text
+quoted calendar debit = 10.50
+quantity = 1
+cash debit = 10.50 * 100 = $1,050
+```
+
+The current sizing idea is to cap each trade at a fixed percentage of account value, for example 7%.
+
+A practical implication is that the account needs to be large enough for one spread to fit inside the per-trade budget. Many liquid large-cap calendar spreads may cost roughly $800–$2,500 per spread, but some can be much higher. With a 7% placeholder rule, an account around $20k–$30k is likely the minimum range where the strategy starts to work normally without frequently rounding position size down to zero.
+
 ## Broker execution
 
 Broker execution starts with IBKR paper trading.
