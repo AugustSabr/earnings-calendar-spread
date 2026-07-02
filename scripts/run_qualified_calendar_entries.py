@@ -15,6 +15,9 @@ from earnings_calendar_spreads.workflow.execute_calendar_entry import (
 from earnings_calendar_spreads.workflow.screen_candidates import (
   screen_earnings_candidate_events,
 )
+from earnings_calendar_spreads.workflow.trading_pause import (
+  is_trading_paused,
+)
 
 
 def print_prepared_entry(entry):
@@ -79,6 +82,10 @@ def main():
   print(f"Qualified calendar entry runner for {today}")
   print(f"Mode: {mode}")
   print()
+
+  if is_trading_paused():
+    print("Trading is paused. Skipping new calendar entries.")
+    return
 
   candidates = screen_earnings_candidate_events(
     today=today,
