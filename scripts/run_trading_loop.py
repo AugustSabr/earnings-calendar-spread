@@ -3,6 +3,8 @@ import os
 import time
 import traceback
 from datetime import time as clock_time
+import subprocess
+import sys
 
 from dotenv import load_dotenv
 
@@ -37,7 +39,15 @@ def should_force_crash() -> bool:
 
 
 def run_exit_job(new_york_now) -> None:
-  LOGGER.info("Would run calendar exit job.")
+  run_subprocess_job(
+    command=[
+      sys.executable,
+      "scripts/run_calendar_exits.py",
+      "--prepare",
+    ],
+    job_name="exit",
+  )
+
   mark_job_run_today(
     job_name="exit",
     new_york_now=new_york_now,
@@ -45,7 +55,14 @@ def run_exit_job(new_york_now) -> None:
 
 
 def run_entry_job(new_york_now) -> None:
-  LOGGER.info("Would run calendar entry job.")
+  run_subprocess_job(
+    command=[
+      sys.executable,
+      "scripts/run_qualified_calendar_entries.py",
+    ],
+    job_name="entry",
+  )
+
   mark_job_run_today(
     job_name="entry",
     new_york_now=new_york_now,
@@ -117,6 +134,37 @@ def send_loop_notification(
     )
   except Exception as error:
     LOGGER.error("Failed to send Telegram notification: %s", error)
+
+def get_job_timeout_seconds() -> int:
+  return int(os.getenv("TRADING_LOOP_JOB_TIMEOUT_SECONDS", "1800"))
+
+
+def run_subprocess_job(
+  command: list[str],
+  job_name: str,
+) -> None:
+  LOGGER.info("Starting %s job: %s", job_name, " ".join(command))
+
+  result = subprocess.run(
+    command,
+    capture_output=True,
+    text=True,
+    timeout=get_job_timeout_seconds(),
+  )
+
+  if result.stdout:
+    LOGGER.info("%s stdout:\n%s", job_name, result.stdout)
+
+  if result.stderr:
+    LOGGER.warning("%s stderr:\n%s", job_name, result.stderr)
+
+  if result.returncode != 0:
+    raise RuntimeError(
+      f"{job_name} job failed with exit code {result.returncode}"
+    )
+
+  LOGGER.info("%s job completed successfully.", job_name)
+
 
 def main():
   load_dotenv()
