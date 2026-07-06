@@ -1,78 +1,121 @@
 # Architecture
 
-This project is split into four main areas.
+This project is split into small modules with clear boundaries.
 
 ## core/
 
-Pure strategy logic.
+Pure strategy logic and calculations.
 
 Code in `core/` should not call external APIs, read files, place orders, or depend on live market connections.
 
 Examples:
-- symbol validation
-- earnings filtering
-- option expiration filtering
-- ATM IV calculations
-- term structure
-- realized volatility
-- screening rules
+
+```text
+symbol validation
+earnings filtering
+option expiration filtering
+screening metrics
+term structure
+realized volatility
+calendar spread pricing
+position sizing
+```
 
 ## data/
 
 External data adapters.
 
-Code in `data/` talks to APIs such as Finnhub and yfinance, then converts the response into formats used by `core/`.
+Code in `data/` talks to public/data APIs and converts responses into formats used by `core/`.
 
-Examples:
-- Finnhub earnings calendar
-- yfinance price history
-- yfinance option chains
+Current examples:
 
-## workflow/
-
-Orchestration.
-
-Code in `workflow/` connects data adapters and core logic into useful flows.
-
-Examples:
-- scan earnings candidates
-- screen one symbol
-- screen all earnings candidates
+```text
+Finnhub earnings calendar
+yfinance price history
+yfinance option chains
+```
 
 ## brokers/
 
 Broker integrations.
 
-Code in `brokers/` should contain order-related logic and broker API code.
+Code in `brokers/` contains IBKR/TWS-specific behavior.
 
 Examples:
-- connect to IBKR/TWS
-- resolve contracts
-- get option quotes
-- place calendar spread orders
-- close open positions
+
+```text
+connect to IBKR/TWS
+resolve stock and option contracts
+fetch option chain parameters
+read bid/ask quotes
+build BAG/combo contracts
+create entry/exit orders
+read positions
+identify open calendar spreads
+```
+
+
+## workflow/
+
+Orchestration.
+
+Code in `workflow/` connects data, core logic, broker logic, storage, and policies into useful flows.
+
+Examples:
+
+```text
+scan earnings candidates
+screen symbols
+prepare a calendar entry
+execute a calendar entry
+prepare a calendar exit
+execute a calendar exit
+reconcile positions after order attempts
+pause/resume trading checks
+```
+
+## notifications/
+
+Telegram and notification formatting.
+
+Current Telegram commands:
+
+```text
+/log [days]
+/positions
+/status
+/pause
+/resume
+```
+
+
+## storage/
+
+Local runtime storage helpers.
+
+Current storage:
+
+```text
+runtime/trade_log.jsonl
+```
+
+The trade log uses JSON Lines. Each event has:
+
+```text
+event_id
+timestamp
+event_type
+trade_id
+symbol
+data
+```
+
+`trade_id` links open and close events for the same calendar spread.
 
 ## scripts/
 
-Manual helper scripts.
+Manual helper and runner scripts.
 
-Scripts are used for inspecting data and manually running workflows during development.
-They are not unit tests.
+Scripts are used for inspection, manual testing, and running workflows during development. They are not unit tests.
 
-Examples:
-- check Finnhub response format
-- check yfinance option data
-- run candidate screening
-
----
-
-## IBKR design notes
-
-Broker code should eventually use one shared IBKR client/app per workflow run.
-
-Avoid opening a new TWS/Gateway connection for every operation. The broker workflow should connect once, then reuse the same connection for:
-
-- contract lookup
-- market data / quotes
-- order placement
-- order status callbacks
+Scripts may connect to external APIs, TWS, or Telegram.

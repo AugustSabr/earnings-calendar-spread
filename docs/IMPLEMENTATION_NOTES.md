@@ -50,21 +50,6 @@ Current rule:
 4. Choose the common strike closest to the underlying price.
 ```
 
-Example:
-
-```text
-Underlying price: 281.74
-
-Short expiry has:
-  280.0, 282.5, 285.0
-
-Long expiry has:
-  275.0, 280.0, 285.0
-
-282.5 is closest, but only exists for the short expiry.
-Choose the closest common strike instead.
-```
-
 ## Pricing
 
 Entry uses natural debit:
@@ -79,6 +64,8 @@ Close uses natural credit:
 close_credit = long_bid - short_ask
 ```
 
+Prices are rounded to cents after calculation.
+
 This is conservative and more fill-oriented than using mid price.
 
 Possible later improvements:
@@ -89,6 +76,25 @@ repricing
 max slippage
 more explicit liquidity rules
 ```
+
+## Position sizing
+
+Sizing currently supports a fixed dollar budget per symbol.
+
+```text
+estimated_total_debit = quoted_debit * 100 * quantity
+quantity = floor(max_debit_per_symbol_usd / (quoted_debit * 100))
+```
+
+If the budget is too small for one spread, the trade should be skipped or fail clearly.
+
+There is also a helper for percentage-based sizing:
+
+```text
+budget_per_symbol = account_value_snapshot_usd * risk_fraction
+```
+
+When account-based sizing is added to the real entry runner, account value should be snapshotted once at the start of the entry window. All candidates in the same run should use the same budget so order sizes do not depend on execution order.
 
 ## Order behavior
 
@@ -108,9 +114,9 @@ If not filled quickly, cancel, re-read positions, and retry more aggressively.
 Better to accept a worse exit than remain in an unwanted position.
 ```
 
-Timeouts and retry rules are not final yet. They should become explicit policy values instead of being hardcoded in scripts.
+Timeouts and retry rules should eventually become explicit policy values instead of being hardcoded in scripts.
 
-## Partial fills
+## Partial fills and reconciliation
 
 Partial fills can happen when order quantity is greater than one.
 
@@ -130,16 +136,59 @@ Matched calendar quantity is:
 min(abs(short_position), long_position)
 ```
 
-## Position sizing
+Entry and exit logging should not rely only on order status. If IBKR order status is delayed or unclear, positions are re-read and used as the source of truth.
 
-Not implemented yet.
+## Trade logging
 
-Eventually, quantity should be based on account size and max allocation per trade.
-
-A possible value to investigate later:
+Trade events are written to:
 
 ```text
-around 7% of total account value per trade
+runtime/trade_log.jsonl
 ```
 
-This is not confirmed and should not be treated as a final rule.
+The file is JSON Lines, with one event per line.
+
+Important event types:
+
+```text
+calendar_opened
+calendar_closed
+```
+
+`trade_id` links the open and close event for the same calendar spread:
+
+```text
+SYMBOL|SHORT_EXPIRATION|LONG_EXPIRATION|STRIKE|RIGHT
+```
+
+`event_id` is unique per log line and is used for debugging/dedup/reference, not for matching open and close.
+
+Current manual `check_ibkr_calendar_order.py` logs opened trades after confirmed fills. The qualified entry runner should use the same logging path before relying on unattended `--transmit` runs.
+
+## Pause flag
+
+Telegram `/pause` creates:
+
+```text
+runtime/trading_paused.flag
+```
+
+Telegram `/resume` removes it.
+
+The qualified entry runner checks this flag and skips new entries while paused.
+
+Pause means:
+
+```text
+do not open new positions
+```
+
+It should not prevent exits, because exits reduce risk.
+
+## Market data
+
+IBKR option bid/ask data is required for entry and exit pricing.
+
+Contract lookup and option chain lookup can work outside regular market hours, but option bid/ask quotes may be unavailable when the US options market is closed.
+
+If option quote scripts return no bid/ask for several liquid contracts, first check market hours and TWS market data status before changing code.

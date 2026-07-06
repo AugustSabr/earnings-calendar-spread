@@ -6,10 +6,12 @@ This project screens for earnings-related options calendar spread trades.
 
 The strategy looks for stocks with upcoming earnings where options pricing shows:
 
-* enough stock liquidity
-* elevated implied volatility compared to realized volatility
-* inverted implied volatility term structure
-* a clear earnings-related options setup
+```text
+enough stock liquidity
+elevated implied volatility compared to realized volatility
+inverted implied volatility term structure
+a clear earnings-related options setup
+```
 
 The goal is not to predict earnings direction. The trade is based on volatility, timing, and option structure around the earnings event.
 
@@ -17,8 +19,10 @@ The goal is not to predict earnings direction. The trade is based on volatility,
 
 The intended timing is a core part of the strategy:
 
-* Enter about 15 minutes before market close before the earnings event.
-* Exit about 15 minutes after market open on the next trading day.
+```text
+Enter about 15 minutes before market close before the earnings event.
+Exit about 15 minutes after market open on the next trading day.
+```
 
 For after-market-close earnings, the trade is entered near the close on the earnings date.
 
@@ -28,8 +32,10 @@ For before-market-open earnings, the trade is entered near the close on the prev
 
 The project scans the earnings calendar for:
 
-* companies reporting after market close today
-* companies reporting before market open tomorrow
+```text
+companies reporting after market close today
+companies reporting before market open tomorrow
+```
 
 Symbols are filtered to keep only standard US stock tickers.
 
@@ -61,7 +67,7 @@ iv30_rv30 = IV at 30 DTE / 30-day realized volatility
 
 Realized volatility is calculated with the Yang-Zhang volatility estimator.
 
-The current threshold is:
+Current threshold:
 
 ```text
 iv30_rv30 >= 1.25
@@ -79,7 +85,7 @@ The term structure slope is calculated from the first available expiration to 45
 ts_slope_0_45 = (IV at 45 DTE - IV at first expiry DTE) / (45 - first expiry DTE)
 ```
 
-The current threshold is:
+Current threshold:
 
 ```text
 ts_slope_0_45 <= -0.00406
@@ -114,23 +120,29 @@ The first version focuses on call calendars.
 
 ## Expiration and strike selection
 
-The short leg should use the nearest relevant expiration after the earnings event.
+The short leg uses the nearest relevant expiration on or after the earnings event.
 
-The long leg should use a later expiration around 45 DTE, or the first available expiration beyond 45 DTE.
+The long leg uses a later expiration around 45 DTE, or the first available expiration beyond 45 DTE.
 
-The strike should be ATM, meaning the available option strike closest to the current stock price.
+The strike should be ATM, meaning the common listed strike closest to the current stock price.
 
-Both legs should use the same strike.
+Both legs must use the same strike and standard 100-share option multiplier.
 
 ## Pricing
 
-A long calendar spread is entered for a net debit.
+Entry uses natural debit:
 
 ```text
-net_debit = back_ask - front_bid
+entry_debit = back_ask - front_bid
 ```
 
-The first automated version should use conservative limit orders.
+Close uses natural credit:
+
+```text
+close_credit = back_bid - front_ask
+```
+
+This is conservative. It is designed to avoid assuming fills at mid price.
 
 ## Position sizing
 
@@ -150,51 +162,77 @@ quantity = 1
 cash debit = 10.50 * 100 = $1,050
 ```
 
-The current sizing idea is to cap each trade at a fixed percentage of account value, for example 7%.
+Current implemented sizing supports a fixed dollar cap per symbol, for example:
 
-A practical implication is that the account needs to be large enough for one spread to fit inside the per-trade budget. Many liquid large-cap calendar spreads may cost roughly $800–$2,500 per spread, but some can be much higher. With a 7% placeholder rule, an account around $20k–$30k is likely the minimum range where the strategy starts to work normally without frequently rounding position size down to zero.
+```text
+--max-debit=2500
+```
+
+The system then chooses the largest quantity that stays below that cap.
+
+The later account-based idea is to cap each trade at a fixed percentage of account value, for example 7%. This is only a placeholder and should be adjusted after paper testing.
+
+When a percentage rule is added, account value should be snapshotted once at the start of the entry window. All candidates in that run should use the same per-symbol budget so sizing does not depend on which order fills first.
+
+A practical implication is that the account needs to be large enough for one spread to fit inside the per-trade budget. Many liquid large-cap calendar spreads may cost roughly $800-$2,500 per spread, but some can be much higher. With a 7% placeholder rule, an account around $20k-$30k is likely the minimum range where the strategy starts to work normally without frequently rounding position size down to zero.
 
 ## Broker execution
 
-Broker execution starts with IBKR paper trading.
+Broker execution currently uses IBKR Paper.
 
-Planned execution flow:
+Current execution flow:
 
 ```text
 resolve stock contract
-resolve short option contract
-resolve long option contract
+get underlying price from IBKR
+resolve option chain and listed strikes from IBKR
+choose common ATM strike
+resolve standard short option contract
+resolve standard long option contract
+get bid/ask quotes
 build BAG/combo contract
 submit limit order
-track fill
+track order status
+re-read positions for reconciliation
+write trade log event after confirmed fill
 close position after next market open
 ```
 
 ## Current project status
 
-Implemented:
+Implemented and paper-tested:
 
-* earnings scan
-* candidate filtering
-* yfinance price and options data
-* average volume
-* Yang-Zhang realized volatility
-* IV30/RV30
-* term structure
-* expected move
-* symbol screening
-* candidate screening workflow
-* IBKR connection check
-* IBKR stock contract lookup
-* IBKR option contract lookup
-* IBKR option bid/ask inspection
+```text
+earnings scan
+candidate filtering
+yfinance screening data
+average volume
+Yang-Zhang realized volatility
+IV30/RV30
+term structure
+expected move
+qualified candidate workflow
+IBKR contract resolution
+IBKR option quote inspection
+calendar spread planning
+BAG/combo construction
+entry order creation
+paper entry transmit
+exit prepare
+paper exit transmit
+position reconciliation
+trade logging
+trade log inspection
+Telegram log/status/pause/resume/positions
+pause flag for new entries
+```
 
-Not yet implemented:
+Still not final:
 
-* calendar spread leg selection
-* BAG/combo contract construction
-* calendar spread order creation
-* order submission
-* fill tracking
-* exit workflow
-* persistent trade logging
+```text
+production scheduling
+account-value based sizing
+final entry/exit retry policy
+unattended qualified-entry logging path
+live trading
+```
