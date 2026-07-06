@@ -18,6 +18,9 @@ from earnings_calendar_spreads.workflow.screen_candidates import (
 from earnings_calendar_spreads.workflow.trading_pause import (
   is_trading_paused,
 )
+from earnings_calendar_spreads.workflow.calendar_trade_logging import (
+  log_calendar_opened_if_confirmed,
+)
 
 
 def print_prepared_entry(entry):
@@ -152,6 +155,19 @@ def main():
 
       print_prepared_entry(execution.prepared_entry)
       print_execution_result(execution.execution_result)
+
+      was_logged = log_calendar_opened_if_confirmed(
+        client=client,
+        entry=execution.prepared_entry,
+        execution_result=execution.execution_result,
+      )
+
+      if was_logged:
+        print()
+        print("Logged calendar_opened event.")
+      elif execution.execution_result.transmitted:
+        print()
+        print("No confirmed filled position found; calendar_opened not logged.")
 
   finally:
     client.disconnect_and_wait()
