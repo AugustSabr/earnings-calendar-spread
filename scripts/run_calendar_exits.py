@@ -54,6 +54,10 @@ from earnings_calendar_spreads.storage.trade_log import (
 from earnings_calendar_spreads.workflow.calendar_position_reconciliation import (
   get_current_matching_calendar_spread,
 )
+from earnings_calendar_spreads.brokers.ibkr_positions import (
+  get_positions_with_retry,
+)
+
 
 def print_spread_summary(spread):
   short_contract = spread.short_position.contract
@@ -240,7 +244,7 @@ def main():
       client_id=client_id,
     )
 
-    positions = client.get_positions()
+    positions = get_positions_with_retry(client)
     spreads = find_calendar_spread_positions(positions)
 
     if requested_symbols:

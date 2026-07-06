@@ -17,6 +17,9 @@ from earnings_calendar_spreads.brokers.ibkr_orders import (
 from earnings_calendar_spreads.core.calendar_spread import (
   calculate_calendar_close_credit,
 )
+from earnings_calendar_spreads.brokers.ibkr_positions import (
+  get_positions_with_retry,
+)
 
 
 @dataclass(frozen=True)
@@ -46,7 +49,7 @@ def prepare_calendar_exit(
 
   Sender ikke ordre.
   """
-  positions = client.get_positions()
+  positions = get_positions_with_retry(client)
 
   spreads = find_calendar_spread_positions(
     positions=positions,
