@@ -43,6 +43,7 @@ def execute_calendar_entry(
     right=right,
     quantity=quantity,
     transmit=transmit,
+    max_debit_per_symbol_usd=max_debit_per_symbol_usd,
   )
 
   execution_result = submit_and_manage_order(
