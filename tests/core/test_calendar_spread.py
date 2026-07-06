@@ -121,3 +121,22 @@ def test_calculate_calendar_close_credit():
   )
 
   assert close_credit == pytest.approx(10.40)
+
+def test_price_calendar_spread_plan_rounds_net_debit():
+  plan = CalendarSpreadPlan(
+    symbol="AAPL",
+    short_expiration="2026-07-10",
+    long_expiration="2026-08-21",
+    strike=310.0,
+    right="C",
+    quantity=1,
+    net_debit=None,
+  )
+
+  priced_plan = price_calendar_spread_plan(
+    plan=plan,
+    front_bid=3.45,
+    back_ask=12.3,
+  )
+
+  assert priced_plan.net_debit == 8.85

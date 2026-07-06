@@ -24,7 +24,7 @@ def calculate_calendar_net_debit(
   if back_ask <= 0:
     raise ValueError("back_ask must be greater than zero.")
 
-  net_debit = back_ask - front_bid
+  net_debit = round(back_ask - front_bid, 2)
 
   if net_debit <= 0:
     raise ValueError("net_debit must be greater than zero.")
@@ -118,7 +118,7 @@ def calculate_calendar_close_credit(
   if back_bid <= 0:
     raise ValueError("back_bid must be greater than zero.")
 
-  close_credit = back_bid - front_ask
+  close_credit = round(back_bid - front_ask, 2)
 
   if close_credit <= 0:
     raise ValueError("close_credit must be greater than zero.")
