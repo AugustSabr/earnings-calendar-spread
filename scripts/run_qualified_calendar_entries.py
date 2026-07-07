@@ -21,6 +21,10 @@ from earnings_calendar_spreads.workflow.trading_pause import (
 from earnings_calendar_spreads.workflow.calendar_trade_logging import (
   log_calendar_opened_if_confirmed,
 )
+from earnings_calendar_spreads.core.money import format_usd
+from earnings_calendar_spreads.core.position_sizing import (
+  calculate_calendar_spread_debit_usd,
+)
 
 
 def print_prepared_entry(entry):
@@ -36,6 +40,14 @@ def print_prepared_entry(entry):
   print(f"Right: {plan.right}")
   print(f"Quantity: {plan.quantity}")
   print(f"Net debit: {plan.net_debit}")
+
+  if plan.net_debit is not None:
+    estimated_total_debit = calculate_calendar_spread_debit_usd(
+      quoted_debit=plan.net_debit,
+      quantity=plan.quantity,
+    )
+
+    print(f"Estimated total debit: {format_usd(estimated_total_debit)}")
 
   print()
   print("Order")
@@ -63,6 +75,13 @@ def print_execution_result(result):
     print("Status after cancel attempt")
     print(result.cancel_status)
 
+def parse_max_debit_per_symbol_usd(args: list[str]) -> float | None:
+  for arg in args:
+    if arg.startswith("--max-debit="):
+      return float(arg.split("=", 1)[1])
+
+  return None
+
 
 def main():
   load_dotenv()
@@ -70,6 +89,10 @@ def main():
   today = date.today()
   should_stage = "--stage" in sys.argv
   should_transmit = "--transmit" in sys.argv
+
+  max_debit_per_symbol_usd = parse_max_debit_per_symbol_usd(
+    sys.argv[1:],
+  )
 
   if should_stage and should_transmit:
     raise ValueError("Use either --stage or --transmit, not both.")
@@ -84,6 +107,8 @@ def main():
 
   print(f"Qualified calendar entry runner for {today}")
   print(f"Mode: {mode}")
+  if max_debit_per_symbol_usd is not None:
+    print(f"Max debit per symbol: {format_usd(max_debit_per_symbol_usd)}")
   print()
 
   if is_trading_paused():
@@ -139,6 +164,7 @@ def main():
           earnings_date=event.report_date,
           primary_exchange=None,
           transmit=False,
+          max_debit_per_symbol_usd=max_debit_per_symbol_usd,
         )
 
         print_prepared_entry(entry)
@@ -151,6 +177,7 @@ def main():
         policy=policy,
         primary_exchange=None,
         transmit=should_transmit,
+        max_debit_per_symbol_usd=max_debit_per_symbol_usd,
       )
 
       print_prepared_entry(execution.prepared_entry)

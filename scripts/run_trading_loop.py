@@ -74,6 +74,11 @@ def run_entry_job(new_york_now) -> None:
   if mode == "transmit":
     command.append("--transmit")
 
+  max_debit_per_symbol_usd = get_trading_loop_max_debit_per_symbol_usd()
+
+  if max_debit_per_symbol_usd is not None:
+    command.append(f"--max-debit={max_debit_per_symbol_usd}")
+
   run_subprocess_job(
     command=command,
     job_name="entry",
@@ -198,6 +203,15 @@ def get_trading_loop_exit_mode() -> str:
 
   return mode
 
+def get_trading_loop_max_debit_per_symbol_usd() -> float | None:
+  value = os.getenv("TRADING_LOOP_MAX_DEBIT_PER_SYMBOL_USD")
+
+  if not value:
+    return None
+
+  return float(value)
+
+
 def main():
   load_dotenv()
   configure_app_logging()
@@ -210,9 +224,10 @@ def main():
   LOGGER.info("Trading loop started. sleep_seconds=%s", sleep_seconds)
 
   LOGGER.info(
-    "Trading loop modes. entry_mode=%s exit_mode=%s",
+    "Trading loop modes. entry_mode=%s exit_mode=%s max_debit_per_symbol_usd=%s",
     get_trading_loop_entry_mode(),
     get_trading_loop_exit_mode(),
+    get_trading_loop_max_debit_per_symbol_usd(),
   )
 
   send_loop_notification(
