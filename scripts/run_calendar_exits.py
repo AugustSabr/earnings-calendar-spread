@@ -188,7 +188,8 @@ def log_calendar_closed_if_confirmed(
         if final_status is not None
         else None
       ),
-      "exit_limit_credit": prepared_exit.close_credit,
+      "exit_limit_credit": prepared_exit.order.lmtPrice,
+      "exit_natural_credit": prepared_exit.close_credit,
       "exit_avg_fill_price": (
         final_status.get("avg_fill_price")
         if final_status is not None
@@ -209,6 +210,84 @@ def log_calendar_closed_if_confirmed(
   append_trade_log_event(event)
 
   return True
+
+def calculate_exit_retry_limit_credit(
+  initial_credit: float,
+  attempt_index: int,
+  step: float = 0.05,
+  minimum_credit: float = 0.01,
+) -> float:
+  limit_credit = initial_credit - (attempt_index * step)
+
+  return round(
+    max(limit_credit, minimum_credit),
+    2,
+  )
+
+
+def execute_calendar_exit_with_retries(
+  client,
+  symbol: str,
+  policy: ExitOrderPolicy,
+  transmit: bool,
+  max_attempts: int = 3,
+):
+  first_execution = None
+  initial_credit = None
+
+  for attempt_index in range(max_attempts):
+    limit_credit_override = None
+
+    if initial_credit is not None:
+      limit_credit_override = calculate_exit_retry_limit_credit(
+        initial_credit=initial_credit,
+        attempt_index=attempt_index,
+      )
+
+    execution = execute_calendar_exit(
+      client=client,
+      symbol=symbol,
+      policy=policy,
+      transmit=transmit,
+      limit_credit_override=limit_credit_override,
+    )
+
+    if first_execution is None:
+      first_execution = execution
+
+    if execution.prepared_exit is None:
+      return execution
+
+    if initial_credit is None:
+      initial_credit = execution.prepared_exit.close_credit
+
+    print()
+    print(f"Exit attempt: {attempt_index + 1}/{max_attempts}")
+
+    final_status = execution.execution_result.final_status
+
+    if (
+      final_status is not None
+      and final_status.get("status") == "Filled"
+    ):
+      return execution
+
+    matching_spread = get_current_matching_calendar_spread(
+      client=client,
+      short_contract=execution.prepared_exit.short_contract,
+      long_contract=execution.prepared_exit.long_contract,
+      symbol=execution.prepared_exit.spread.symbol,
+      wait_seconds=1,
+    )
+
+    if matching_spread is None:
+      return execution
+
+    if not transmit:
+      return execution
+
+  return execution
+
 
 def main():
   load_dotenv()
@@ -289,7 +368,7 @@ def main():
         print_prepared_exit(prepared_exit)
         continue
 
-      execution = execute_calendar_exit(
+      execution = execute_calendar_exit_with_retries(
         client=client,
         symbol=spread.symbol,
         policy=policy,

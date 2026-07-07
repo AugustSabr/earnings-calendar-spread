@@ -25,6 +25,7 @@ def execute_calendar_exit(
   symbol: str,
   policy: ExitOrderPolicy,
   transmit: bool = False,
+  limit_credit_override: float | None = None,
 ) -> CalendarExitExecution:
   """
   Forbereder og sender/stager en calendar exit.
@@ -42,6 +43,9 @@ def execute_calendar_exit(
       prepared_exit=None,
       execution_result=None,
     )
+
+  if limit_credit_override is not None:
+    prepared_exit.order.lmtPrice = round(limit_credit_override, 2)
 
   execution_result = submit_and_manage_order(
     client=client,
