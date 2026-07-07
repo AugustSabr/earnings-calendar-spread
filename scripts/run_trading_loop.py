@@ -39,12 +39,19 @@ def should_force_crash() -> bool:
 
 
 def run_exit_job(new_york_now) -> None:
+  mode = get_trading_loop_exit_mode()
+  command = [
+    sys.executable,
+    "scripts/run_calendar_exits.py",
+  ]
+
+  if mode != "prepare":
+    command.append(f"--{mode}")
+  else:
+    command.append("--prepare")
+
   run_subprocess_job(
-    command=[
-      sys.executable,
-      "scripts/run_calendar_exits.py",
-      "--prepare",
-    ],
+    command=command,
     job_name="exit",
   )
 
@@ -55,11 +62,20 @@ def run_exit_job(new_york_now) -> None:
 
 
 def run_entry_job(new_york_now) -> None:
+  mode = get_trading_loop_entry_mode()
+  command = [
+    sys.executable,
+    "scripts/run_qualified_calendar_entries.py",
+  ]
+
+  if mode == "stage":
+    command.append("--stage")
+
+  if mode == "transmit":
+    command.append("--transmit")
+
   run_subprocess_job(
-    command=[
-      sys.executable,
-      "scripts/run_qualified_calendar_entries.py",
-    ],
+    command=command,
     job_name="entry",
   )
 
@@ -165,6 +181,22 @@ def run_subprocess_job(
 
   LOGGER.info("%s job completed successfully.", job_name)
 
+def get_trading_loop_entry_mode() -> str:
+  mode = os.getenv("TRADING_LOOP_ENTRY_MODE", "prepare").lower()
+
+  if mode not in {"prepare", "stage", "transmit"}:
+    raise ValueError("TRADING_LOOP_ENTRY_MODE must be prepare, stage, or transmit.")
+
+  return mode
+
+
+def get_trading_loop_exit_mode() -> str:
+  mode = os.getenv("TRADING_LOOP_EXIT_MODE", "prepare").lower()
+
+  if mode not in {"prepare", "stage", "transmit"}:
+    raise ValueError("TRADING_LOOP_EXIT_MODE must be prepare, stage, or transmit.")
+
+  return mode
 
 def main():
   load_dotenv()
@@ -176,6 +208,12 @@ def main():
   last_error_notification_time = 0.0
 
   LOGGER.info("Trading loop started. sleep_seconds=%s", sleep_seconds)
+
+  LOGGER.info(
+    "Trading loop modes. entry_mode=%s exit_mode=%s",
+    get_trading_loop_entry_mode(),
+    get_trading_loop_exit_mode(),
+  )
 
   send_loop_notification(
     config=telegram_config,
