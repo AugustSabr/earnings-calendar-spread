@@ -16,6 +16,8 @@ from earnings_calendar_spreads.brokers.ibkr_positions import IBKRPosition
 INFO_ERROR_CODES = {
   2104,
   2106,
+  2107,
+  2119,
   2158,
 }
 

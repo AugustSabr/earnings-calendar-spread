@@ -9,6 +9,7 @@ dependencies = [
   "scipy>=1.14.0",
   "numpy>=1.26.0",
   "pandas>=2.0.0",
+  "ibapi-latest==10.51.1",
 ]
 
 [project.optional-dependencies]
